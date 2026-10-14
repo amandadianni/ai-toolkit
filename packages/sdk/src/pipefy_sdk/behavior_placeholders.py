@@ -144,8 +144,9 @@ def populate_referenced_field_ids(behavior: dict[str, Any]) -> None:
     extracted ids — including the empty list when no tokens are present.
 
     Pipefy reads this stored list to pick which card field values the behavior
-    receives when it triggers. When it is null, the behavior receives no field
-    values and its placeholders have nothing to substitute.
+    receives when it triggers. When it is null or empty, the behavior receives
+    only the field values its actions use, so an instruction placeholder for any
+    other field has no value to substitute.
 
     Should run **after** slug resolution so that slug-form refs already became
     numeric. Running it before slug resolution would capture only the numeric
