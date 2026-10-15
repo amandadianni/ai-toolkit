@@ -1470,14 +1470,13 @@ class TestGetCardsTool:
 _RECORDS_FIELD_UUID = "00000000-0000-4000-8000-0000000000aa"
 
 
-def _records_response(**extra):
+def _records_response():
     return {
         "records": {
             "totalCount": 1,
             "pageInfo": {"hasNextPage": False, "endCursor": "c1=="},
             "edges": [{"node": {"id": "1"}}],
-        },
-        **extra,
+        }
     }
 
 
@@ -1513,8 +1512,6 @@ class TestGetRecordsTool:
                     "include_fields": True,
                     "first": 20,
                     "after": "c0==",
-                    "fetch_all": False,
-                    "max_cards": 500,
                 },
             )
 
@@ -1528,8 +1525,6 @@ class TestGetRecordsTool:
             True,
             first=20,
             after="c0==",
-            fetch_all=False,
-            max_cards=500,
         )
 
     async def test_get_records_first_above_fifty_returns_invalid_arguments(
@@ -1591,28 +1586,6 @@ class TestGetRecordsTool:
         message = tool_error_message(payload)
         assert f"Cannot access pipe (ID: {pipe_id})" in message
         assert message.isascii()
-
-    async def test_get_records_fetch_all_passes_complete_through(
-        self,
-        client_session,
-        mock_pipefy_client,
-        pipe_id,
-        extract_payload,
-        unified_envelope,
-    ):
-        mock_pipefy_client.get_records = AsyncMock(
-            return_value=_records_response(fetched=1, complete=True)
-        )
-        async with client_session as session:
-            result = await session.call_tool(
-                "get_records", {"pipe_id": pipe_id, "fetch_all": True}
-            )
-        payload = extract_payload(result)
-        assert payload["success"] is True
-        assert payload["data"]["complete"] is True
-        assert payload["data"]["fetched"] == 1
-        assert payload["data"]["records"]["totalCount"] == 1
-        assert "pagination" not in payload
 
     async def test_get_records_first_emits_pagination(
         self,

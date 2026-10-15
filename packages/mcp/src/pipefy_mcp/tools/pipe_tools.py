@@ -742,8 +742,6 @@ class PipeTools:
             include_fields: bool = False,
             first: int | None = None,
             after: str | None = None,
-            fetch_all: bool = False,
-            max_cards: int = 1000,
             debug: bool = False,
         ) -> dict:
             """List, count and filter the cards of a pipe on the server (the ``records`` query).
@@ -756,10 +754,8 @@ class PipeTools:
             Dates are ISO 8601 with an offset. Pages hold at most 50 cards; with
             ``where`` or ``search_term`` paging stops at 10,000 cards.
 
-            Prefer ``fetch_all=True`` to paging by hand: it follows ``endCursor``
-            itself, returns the edges of every page in one list plus ``fetched`` and
-            ``complete`` (fetched equals totalCount), and stops early with a
-            ``message`` (totalCount above ``max_cards``) or an ``error``.
+            To read every page, pass ``pageInfo.endCursor`` back as ``after`` until
+            ``hasNextPage`` is false; never build a cursor.
 
             Args:
                 pipe_id: The ID of the pipe.
@@ -770,8 +766,6 @@ class PipeTools:
                 include_fields: If True, include each card's custom fields.
                 first: Cards per page (1-50).
                 after: ``pageInfo.endCursor`` from the previous page, passed back exactly.
-                fetch_all: Fetch every page, 50 at a time, up to ``max_cards``.
-                max_cards: Upper bound for ``fetch_all`` (1-2000).
                 debug: When True, append GraphQL codes and correlation_id on errors.
             """
             client = get_pipefy_client(ctx)
@@ -790,8 +784,6 @@ class PipeTools:
                     include_fields,
                     first=first,
                     after=after,
-                    fetch_all=fetch_all,
-                    max_cards=max_cards,
                 )
             except ValueError as exc:
                 return tool_error(str(exc), code="INVALID_ARGUMENTS")
@@ -805,7 +797,7 @@ class PipeTools:
                 )
             if is_unified_envelope_enabled():
                 pagination = None
-                if first is not None and not fetch_all:
+                if first is not None:
                     pagination = build_pagination_info(
                         page_info=raw["records"]["pageInfo"], page_size=first
                     )
