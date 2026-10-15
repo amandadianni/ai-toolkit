@@ -151,7 +151,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `get_pipe_report_filterable_fields` | `pipefy report-pipe filterable-fields` | shipped | Reports domain. |
 | `get_pipe_reports` | `pipefy report-pipe list` | shipped | Reports domain. |
 | `get_portal` | `pipefy portal get` | shipped | Interfaces schema; read-only; includes `published`. |
-| `get_records` | `pipefy card records` | shipped | Lists, counts and filters the cards of a pipe (``--pipe``, ``--where`` JSON filter, ``--search-term``, ``--phase``, ``--order-by`` JSON, ``--include-fields``, ``--first`` 1 to 50 / ``--after``). ``--all`` follows ``endCursor`` up to ``--max-cards`` (1 to 2000) and adds ``fetched`` / ``complete``. |
+| `get_records` | `pipefy card records` | shipped | Lists, counts and filters the cards of a pipe (``--pipe``, ``--where`` JSON filter, ``--search-term``, ``--phase``, ``--order-by`` JSON, ``--include-fields``, ``--first`` 1 to 50 / ``--after``). |
 | `get_start_form_fields` | `pipefy pipe start-form` | shipped | optional ``--required-only``. |
 | `get_table` | `pipefy table get` | shipped | — |
 | `get_table_record` | `pipefy record get` | shipped | — |
