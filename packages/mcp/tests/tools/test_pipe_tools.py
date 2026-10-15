@@ -16,7 +16,7 @@ from mcp.types import (
     ElicitRequestParams,
     ElicitResult,
 )
-from pipefy_sdk import PipefyClient, PipefyGraphQLError
+from pipefy_sdk import PipefyClient, PipefyGraphQLError, PipefyRequestTimeoutError
 
 from pipefy_mcp.auth import RequestScopedIdentity
 from pipefy_mcp.core.runtime import McpRuntime
@@ -2283,6 +2283,40 @@ class TestDeleteCardTool:
                 ),
             )
             assert payload == expected_payload
+
+    async def test_request_timeout_surfaces_timeout_message(
+        self,
+        client_session,
+        mock_pipefy_client,
+    ) -> None:
+        """A timed-out delete reports the timeout, not the generic retry message.
+
+        A timeout carries no GraphQL error code, so before the fix the write path
+        folded it into "Please try again or contact support.", which invites a retry
+        of a delete the API may already have committed. The reply now names the
+        timeout and warns the mutation may have applied.
+        """
+        mock_pipefy_client.get_card.return_value = {
+            "card": {
+                "id": "12345",
+                "title": "Test Card",
+                "pipe": {"name": "Test Pipe"},
+            }
+        }
+        mock_pipefy_client.delete_card.side_effect = PipefyRequestTimeoutError(30)
+
+        async with client_session as session:
+            payload = await confirm_after_preview(
+                session, "delete_card", {"card_id": 12345}
+            )
+
+            mock_pipefy_client.delete_card.assert_called_once_with("12345")
+
+            message = tool_error_message(payload)
+            assert payload["success"] is False
+            assert "timed out" in message.lower()
+            assert "30" in message
+            assert "try again" not in message.lower()
 
     async def test_deletion_fails_with_success_false(
         self,

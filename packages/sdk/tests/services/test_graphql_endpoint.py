@@ -11,6 +11,7 @@ from gql.transport.httpx import HTTPXAsyncTransport
 from pipefy_auth import StaticBearerAuth
 
 from pipefy_sdk import __version__
+from pipefy_sdk.exceptions import PipefyRequestTimeoutError
 from pipefy_sdk.graphql_executor import (
     GraphQLEndpoint,
     GraphQLResult,
@@ -226,6 +227,10 @@ async def test_execute_times_out_at_the_endpoint_request_timeout(monkeypatch):
 
     ``httpx.MockTransport`` enforces no httpx timeout, so the only timer that can
     fire is gql's execute timeout. The test shrinks the constant to stay fast.
+
+    The failure is a :class:`PipefyRequestTimeoutError` carrying a message that
+    names the limit and its value, not gql's bare, empty ``TimeoutError``. It is
+    still a ``TimeoutError`` so existing ``except TimeoutError`` handlers hold.
     """
     monkeypatch.setattr(GraphQLEndpoint, "GRAPHQL_REQUEST_TIMEOUT_SECONDS", 0.05)
 
@@ -236,10 +241,15 @@ async def test_execute_times_out_at_the_endpoint_request_timeout(monkeypatch):
     with _patched_transport(handler):
         endpoint = GraphQLEndpoint(url=GRAPHQL_URL)
         start = time.monotonic()
-        with pytest.raises(TimeoutError):
+        with pytest.raises(PipefyRequestTimeoutError) as excinfo:
             await endpoint.execute(_sample_query(), {}, auth=_bearer())
 
     assert time.monotonic() - start < 1
+    assert isinstance(excinfo.value, TimeoutError)
+    message = str(excinfo.value)
+    assert message.strip()
+    assert "0.05" in message
+    assert "timed out" in message.lower()
 
 
 @pytest.mark.unit

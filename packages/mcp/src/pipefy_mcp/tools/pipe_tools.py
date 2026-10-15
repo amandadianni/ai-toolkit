@@ -40,6 +40,7 @@ from pipefy_mcp.tools.graphql_error_helpers import (
     extract_graphql_correlation_id,
     extract_graphql_error_codes,
     handle_tool_graphql_error,
+    timeout_message_or,
     with_debug_suffix,
 )
 from pipefy_mcp.tools.mcp_capabilities import supports_elicitation
@@ -1411,8 +1412,11 @@ class PipeTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_card_error_to_message(
-                    card_id=card_id_str, card_title="Unknown", codes=codes
+                base = timeout_message_or(
+                    exc,
+                    map_delete_card_error_to_message(
+                        card_id=card_id_str, card_title="Unknown", codes=codes
+                    ),
                 )
                 return build_delete_card_error_payload(
                     message=with_debug_suffix(
@@ -1457,8 +1461,11 @@ class PipeTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_card_error_to_message(
-                    card_id=card_id_str, card_title=card_title, codes=codes
+                base = timeout_message_or(
+                    exc,
+                    map_delete_card_error_to_message(
+                        card_id=card_id_str, card_title=card_title, codes=codes
+                    ),
                 )
                 return build_delete_card_error_payload(
                     message=with_debug_suffix(
