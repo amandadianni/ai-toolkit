@@ -1675,6 +1675,8 @@ class PipefyClient:
         *,
         first: int | None = None,
         after: str | None = None,
+        fetch_all: bool = False,
+        max_cards: int = 1000,
     ) -> dict:
         """List, count and filter the cards of a pipe (the ``records`` GraphQL query).
 
@@ -1684,6 +1686,9 @@ class PipefyClient:
         LABELS ``in`` matches any and ``contains`` all; dates are ISO 8601 with an
         offset. Pages hold at most 50 cards (a larger ``first`` is sent as 50), and
         with ``where`` or ``search_term`` paging stops at 10,000 cards.
+        ``fetch_all`` follows ``endCursor`` itself (``max_cards`` 1..2000) and adds
+        ``fetched``, ``complete`` (fetched equals totalCount) and a ``message`` or
+        ``error`` when it stops early; the edges of every page come back in one list.
         """
         return await self._card_service.get_records(
             pipe_id,
@@ -1694,6 +1699,8 @@ class PipefyClient:
             include_fields,
             first=first,
             after=after,
+            fetch_all=fetch_all,
+            max_cards=max_cards,
         )
 
     async def find_cards(
