@@ -119,20 +119,12 @@ def test_card_records_minimal_json(runner, clean_pipefy_env, saved_cwd, oauth_en
         False,
         first=None,
         after=None,
-        fetch_all=False,
-        max_cards=1000,
     )
 
 
-def test_card_records_forwards_where_and_all(
-    runner, clean_pipefy_env, saved_cwd, oauth_env
-):
+def test_card_records_forwards_where(runner, clean_pipefy_env, saved_cwd, oauth_env):
     oauth_env("records-cards-2")
-    payload = {
-        "records": {"totalCount": 1, "pageInfo": {}, "edges": []},
-        "fetched": 1,
-        "complete": True,
-    }
+    payload = {"records": {"totalCount": 1, "pageInfo": {}, "edges": []}}
     mock_client = MagicMock()
     mock_client.get_records = AsyncMock(return_value=payload)
     where = {"attribute": "ASSIGNEES", "in": ["900000001"]}
@@ -152,9 +144,6 @@ def test_card_records_forwards_where_and_all(
         "--order-by",
         json.dumps(order_by),
         "--include-fields",
-        "--all",
-        "--max-cards",
-        "200",
         "--json",
     )
 
@@ -169,8 +158,6 @@ def test_card_records_forwards_where_and_all(
         True,
         first=None,
         after=None,
-        fetch_all=True,
-        max_cards=200,
     )
 
 
@@ -180,7 +167,7 @@ def test_card_records_out_of_range_options_exit_2(
     oauth_env("records-bad-args")
     mock_client = MagicMock()
 
-    for args in (("--first", "51"), ("--max-cards", "0"), ("--where", "[]")):
+    for args in (("--first", "51"), ("--where", "[]")):
         result = _invoke_card_records(runner, mock_client, "--pipe", "1", *args)
         assert result.exit_code == 2, args
     mock_client.get_records.assert_not_called()

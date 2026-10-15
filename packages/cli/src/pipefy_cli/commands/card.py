@@ -225,18 +225,6 @@ def card_records(
         "--after",
         help="Pagination cursor (pageInfo.endCursor), passed back exactly.",
     ),
-    fetch_all: bool = typer.Option(
-        False,
-        "--all",
-        help="Follow endCursor and return every page, 50 at a time, up to --max-cards.",
-    ),
-    max_cards: int = typer.Option(
-        1000,
-        "--max-cards",
-        min=1,
-        max=2000,
-        help="Upper bound for --all.",
-    ),
     json_out: bool = typer.Option(
         False,
         "--json",
@@ -248,8 +236,8 @@ def card_records(
 
     totalCount counts the whole result. On ASSIGNEES and LABELS, in matches any
     and contains matches all; dates are ISO 8601 with an offset. With --where or
-    --search-term, paging stops at 10,000 cards. --all adds fetched and complete
-    (fetched equals totalCount); check complete before trusting the list.
+    --search-term, paging stops at 10,000 cards. Page with --after set to
+    pageInfo.endCursor until hasNextPage is false.
     """
     where: RecordFilter | None = parse_json_object(where_json, "--where")
     order_by: list[RecordOrder] | None = parse_json_value(order_by_json, "--order-by")
@@ -267,8 +255,6 @@ def card_records(
             include_fields,
             first=first_validated,
             after=after,
-            fetch_all=fetch_all,
-            max_cards=max_cards,
         )
 
     run_cli_command(ctx, json_out, factory)
