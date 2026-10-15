@@ -10,6 +10,8 @@ from pipefy_sdk import (
     CommentInput,
     DeleteCommentInput,
     PipefyClient,
+    RecordFilter,
+    RecordOrder,
     UpdateCommentInput,
     copy_card_search,
 )
@@ -31,6 +33,8 @@ from pipefy_cli.commands._common import (
 
 card_app = typer.Typer(help="Card operations.", no_args_is_help=True)
 comment_app = typer.Typer(help="Card comments.", no_args_is_help=True)
+
+_RECORDS_PAGE_SIZE_MAX = 50
 
 
 def _parse_card_search_json(raw: str | None) -> CardSearch | None:
@@ -179,6 +183,92 @@ def card_list(
             include_fields=include_fields,
             first=first_validated,
             after=after,
+        )
+
+    run_cli_command(ctx, json_out, factory)
+
+
+@card_app.command("records")
+def card_records(
+    ctx: typer.Context,
+    pipe_id: str = typer.Option(..., "--pipe", help="Pipe id whose cards to load."),
+    where_json: str | None = typer.Option(
+        None,
+        "--where",
+        help='JSON filter object, e.g. {"attribute": "ASSIGNEES", "in": ["<user id>"]}; and/or take a list of filters. field must be the custom field uuid.',
+    ),
+    search_term: str | None = typer.Option(
+        None,
+        "--search-term",
+        help="Match title, subtitle fields and card id.",
+    ),
+    phase_id: str | None = typer.Option(
+        None, "--phase", help="Only cards currently in this phase."
+    ),
+    order_by_json: str | None = typer.Option(
+        None,
+        "--order-by",
+        help='JSON list, e.g. [{"attribute": "CREATED_AT", "direction": "DESC"}].',
+    ),
+    include_fields: bool = typer.Option(
+        False,
+        "--include-fields",
+        help="Include each card's custom fields.",
+    ),
+    first: int | None = typer.Option(
+        None,
+        "--first",
+        help=f"Max cards per page ({_CARDS_PAGE_SIZE_MIN}-{_RECORDS_PAGE_SIZE_MAX}).",
+    ),
+    after: str | None = typer.Option(
+        None,
+        "--after",
+        help="Pagination cursor (pageInfo.endCursor), passed back exactly.",
+    ),
+    fetch_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Follow endCursor and return every page, 50 at a time, up to --max-cards.",
+    ),
+    max_cards: int = typer.Option(
+        1000,
+        "--max-cards",
+        min=1,
+        max=2000,
+        help="Upper bound for --all.",
+    ),
+    json_out: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Print machine-readable JSON to stdout.",
+    ),
+) -> None:
+    """List, count and filter the cards of a pipe (records query).
+
+    totalCount counts the whole result. On ASSIGNEES and LABELS, in matches any
+    and contains matches all; dates are ISO 8601 with an offset. With --where or
+    --search-term, paging stops at 10,000 cards. --all adds fetched and complete
+    (fetched equals totalCount); check complete before trusting the list.
+    """
+    where: RecordFilter | None = parse_json_object(where_json, "--where")
+    order_by: list[RecordOrder] | None = parse_json_value(order_by_json, "--order-by")
+    if order_by is not None and not isinstance(order_by, list):
+        raise typer.BadParameter("--order-by must be a JSON array")
+    first_validated = validate_cards_page_size(first, max_size=_RECORDS_PAGE_SIZE_MAX)
+
+    async def factory(client: PipefyClient):
+        return await client.get_records(
+            pipe_id,
+            where,
+            search_term,
+            phase_id,
+            order_by,
+            include_fields,
+            first=first_validated,
+            after=after,
+            fetch_all=fetch_all,
+            max_cards=max_cards,
         )
 
     run_cli_command(ctx, json_out, factory)
