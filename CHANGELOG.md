@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **SDK `get_records`**: `PipefyClient.get_records` lists, counts and filters the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` must be the field uuid and is rejected with `ValueError` before any call; pages are capped at 50. (#791)
+- **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, counts and filters the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` must be the field uuid and is rejected with `ValueError` before any call; pages are capped at 50. With `fetch_all=True` the SDK follows `pageInfo.endCursor` itself, up to `max_cards` (1 to 2000, default 1000), and returns the edges of every page in one list with `fetched` and `complete`, because callers paging by hand can skip or repeat pages when they don't pass `endCursor` back exactly. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, `--first` 1 to 50, `--all` and `--max-cards`. (#791)
 
 ### Fixed
 
