@@ -97,6 +97,9 @@ from pipefy_sdk.services.types import (
     MePayload,
     ProviderAccessProbeResult,
     ProviderDependenciesResult,
+    RecordFilter,
+    RecordOrder,
+    RecordRange,
     copy_card_search,
 )
 from pipefy_sdk.settings import PipefySettings
@@ -175,6 +178,9 @@ __all__ = [
     "PipefyGraphQLError",
     "PipefyId",
     "PipefySettings",
+    "RecordFilter",
+    "RecordOrder",
+    "RecordRange",
     "TableRecordTarget",
     "UpdateAiAgentInput",
     "UpdateAiAutomationInput",

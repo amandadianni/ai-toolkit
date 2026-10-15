@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from typing_extensions import TypedDict
 
+from pipefy_sdk.utils.organization_identifiers import looks_like_uuid
+
 
 class CardSearch(TypedDict, total=False):
     """Type definition for card search parameters"""
@@ -23,6 +25,65 @@ def copy_card_search(search: CardSearch) -> CardSearch:
     :meth:`PipefyClient.get_cards`.
     """
     return {k: search[k] for k in CardSearch.__optional_keys__ if k in search}
+
+
+RecordScalar = str | int | float | bool | None
+
+
+class RecordRange(TypedDict):
+    min: RecordScalar
+    max: RecordScalar
+
+
+# Functional form because "and", "or" and "in" are Python keywords.
+RecordFilter = TypedDict(
+    "RecordFilter",
+    {
+        "and": list["RecordFilter"],
+        "or": list["RecordFilter"],
+        "attribute": str,
+        "field": str,
+        "eq": RecordScalar,
+        "neq": RecordScalar,
+        "lt": RecordScalar,
+        "gt": RecordScalar,
+        "lte": RecordScalar,
+        "gte": RecordScalar,
+        "contains": list[RecordScalar],
+        "ncontains": list[RecordScalar],
+        "in": list[RecordScalar],
+        "nin": list[RecordScalar],
+        "between": RecordRange,
+        "nbetween": RecordRange,
+        "like": RecordScalar,
+        "nlike": RecordScalar,
+        "ilike": RecordScalar,
+        "nilike": RecordScalar,
+    },
+    total=False,
+)
+
+
+class RecordOrder(TypedDict, total=False):
+    attribute: str
+    field: str
+    direction: Literal["ASC", "DESC"]
+
+
+def validate_record_filter(where: RecordFilter) -> None:
+    """Raise ``ValueError`` when any ``field`` in the filter tree is not a uuid.
+
+    Core answers a slug with a generic internal error, so this names the cause first.
+    """
+    field = where.get("field")
+    if field is not None and not (isinstance(field, str) and looks_like_uuid(field)):
+        raise ValueError(
+            "field must be the custom field uuid (from get_phase_fields), "
+            f"got {field!r}"
+        )
+    for key in ("and", "or"):
+        for child in where.get(key) or []:
+            validate_record_filter(child)
 
 
 class AiAgentGraphPayload(TypedDict, total=False):
