@@ -12,6 +12,8 @@ from pipefy_sdk import (
     CommentInput,
     DeleteCommentInput,
     PipefyId,
+    RecordFilter,
+    RecordOrder,
     UpdateCommentInput,
     copy_card_search,
     create_form_model,
@@ -721,6 +723,94 @@ class PipeTools:
                     )
                 return tool_success(
                     data=raw, message="Cards retrieved.", pagination=pagination
+                )
+            return raw
+
+        @mcp.tool(
+            annotations=ToolAnnotations(
+                readOnlyHint=True,
+            ),
+            meta=REMOTE,
+        )
+        async def get_records(
+            ctx: Context,
+            pipe_id: PipefyId,
+            where: RecordFilter | None = None,
+            search_term: str | None = None,
+            phase_id: PipefyId | None = None,
+            order_by: list[RecordOrder] | None = None,
+            include_fields: bool = False,
+            first: int | None = None,
+            after: str | None = None,
+            fetch_all: bool = False,
+            max_cards: int = 1000,
+            debug: bool = False,
+        ) -> dict:
+            """List, count and filter the cards of a pipe on the server (the ``records`` query).
+
+            Returns ``records.totalCount`` (the whole result, not the page),
+            ``pageInfo`` and ``edges`` in camelCase. ``where`` is a filter node
+            (``attribute`` or ``field`` plus one operator) or ``and``/``or`` lists of
+            nodes. ``field`` must be the custom field uuid from ``get_phase_fields``.
+            On ASSIGNEES and LABELS, ``in`` matches any and ``contains`` matches all.
+            Dates are ISO 8601 with an offset. Pages hold at most 50 cards; with
+            ``where`` or ``search_term`` paging stops at 10,000 cards.
+
+            Prefer ``fetch_all=True`` to paging by hand: it follows ``endCursor``
+            itself, returns the edges of every page in one list plus ``fetched`` and
+            ``complete`` (fetched equals totalCount), and stops early with a
+            ``message`` (totalCount above ``max_cards``) or an ``error``.
+
+            Args:
+                pipe_id: The ID of the pipe.
+                where: Filter tree, e.g. ``{"attribute": "ASSIGNEES", "in": ["<user id>"]}``.
+                search_term: Matches title, subtitle fields and card id.
+                phase_id: Only cards currently in this phase.
+                order_by: List of ``{attribute or field, direction}`` (ASC or DESC).
+                include_fields: If True, include each card's custom fields.
+                first: Cards per page (1-50).
+                after: ``pageInfo.endCursor`` from the previous page, passed back exactly.
+                fetch_all: Fetch every page, 50 at a time, up to ``max_cards``.
+                max_cards: Upper bound for ``fetch_all`` (1-2000).
+                debug: When True, append GraphQL codes and correlation_id on errors.
+            """
+            client = get_pipefy_client(ctx)
+            if first is not None:
+                first, err = validate_page_size(first, max_size=50)
+                if err is not None:
+                    return err
+
+            try:
+                raw = await client.get_records(
+                    pipe_id,
+                    where,
+                    search_term,
+                    phase_id,
+                    order_by,
+                    include_fields,
+                    first=first,
+                    after=after,
+                    fetch_all=fetch_all,
+                    max_cards=max_cards,
+                )
+            except ValueError as exc:
+                return tool_error(str(exc), code="INVALID_ARGUMENTS")
+            except Exception as exc:  # noqa: BLE001
+                return handle_tool_graphql_error(
+                    exc,
+                    "Get records failed.",
+                    debug=debug,
+                    resource_kind="pipe",
+                    resource_id=pipe_id,
+                )
+            if is_unified_envelope_enabled():
+                pagination = None
+                if first is not None and not fetch_all:
+                    pagination = build_pagination_info(
+                        page_info=raw["records"]["pageInfo"], page_size=first
+                    )
+                return tool_success(
+                    data=raw, message="Records retrieved.", pagination=pagination
                 )
             return raw
 

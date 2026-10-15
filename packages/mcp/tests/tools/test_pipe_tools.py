@@ -1467,6 +1467,174 @@ class TestGetCardsTool:
         )
 
 
+_RECORDS_FIELD_UUID = "00000000-0000-4000-8000-0000000000aa"
+
+
+def _records_response(**extra):
+    return {
+        "records": {
+            "totalCount": 1,
+            "pageInfo": {"hasNextPage": False, "endCursor": "c1=="},
+            "edges": [{"node": {"id": "1"}}],
+        },
+        **extra,
+    }
+
+
+@pytest.mark.anyio
+class TestGetRecordsTool:
+    async def test_get_records_forwards_every_argument_to_client(
+        self, client_session, mock_pipefy_client, pipe_id
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=_records_response())
+        where = {
+            "and": [
+                {"attribute": "ASSIGNEES", "in": ["900000001"]},
+                {
+                    "attribute": "FINISHED_AT",
+                    "between": {
+                        "min": "2026-01-01T00:00:00-03:00",
+                        "max": "2026-01-31T23:59:59-03:00",
+                    },
+                },
+            ]
+        }
+        order_by = [{"attribute": "CREATED_AT", "direction": "DESC"}]
+
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records",
+                {
+                    "pipe_id": pipe_id,
+                    "where": where,
+                    "search_term": "acme",
+                    "phase_id": 900000201,
+                    "order_by": order_by,
+                    "include_fields": True,
+                    "first": 20,
+                    "after": "c0==",
+                    "fetch_all": False,
+                    "max_cards": 500,
+                },
+            )
+
+        assert result.is_error is False
+        mock_pipefy_client.get_records.assert_called_once_with(
+            str(pipe_id),
+            where,
+            "acme",
+            "900000201",
+            order_by,
+            True,
+            first=20,
+            after="c0==",
+            fetch_all=False,
+            max_cards=500,
+        )
+
+    async def test_get_records_first_above_fifty_returns_invalid_arguments(
+        self,
+        client_session,
+        mock_pipefy_client,
+        pipe_id,
+        extract_payload,
+        envelope_flag,
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=_records_response())
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records", {"pipe_id": pipe_id, "first": 51}
+            )
+        payload = extract_payload(result)
+        assert payload["success"] is False
+        assert payload["error"]["code"] == "INVALID_ARGUMENTS"
+        assert payload["error"]["details"]["max"] == 50
+        mock_pipefy_client.get_records.assert_not_called()
+
+    async def test_get_records_field_slug_returns_invalid_arguments(
+        self, client_session, mock_pipefy_client, pipe_id, extract_payload
+    ):
+        mock_pipefy_client.get_records = AsyncMock(
+            side_effect=ValueError(
+                "field must be the custom field uuid (from get_phase_fields), "
+                "got 'total_value'"
+            )
+        )
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records",
+                {"pipe_id": pipe_id, "where": {"field": "total_value", "eq": "x"}},
+            )
+        payload = extract_payload(result)
+        assert payload["success"] is False
+        assert payload["error"]["code"] == "INVALID_ARGUMENTS"
+        assert "uuid" in tool_error_message(payload)
+
+    async def test_get_records_permission_denied_says_pipe_is_not_visible(
+        self, client_session, mock_pipefy_client, pipe_id, extract_payload
+    ):
+        mock_pipefy_client.get_records = AsyncMock(
+            side_effect=PipefyGraphQLError(
+                [
+                    {
+                        "message": "Permission denied",
+                        "extensions": {"code": "PERMISSION_DENIED"},
+                    }
+                ]
+            )
+        )
+        async with client_session as session:
+            result = await session.call_tool("get_records", {"pipe_id": pipe_id})
+        payload = extract_payload(result)
+        assert payload["success"] is False
+        assert payload["error"]["code"] == "PERMISSION_DENIED"
+        message = tool_error_message(payload)
+        assert f"Cannot access pipe (ID: {pipe_id})" in message
+        assert message.isascii()
+
+    async def test_get_records_fetch_all_passes_complete_through(
+        self,
+        client_session,
+        mock_pipefy_client,
+        pipe_id,
+        extract_payload,
+        unified_envelope,
+    ):
+        mock_pipefy_client.get_records = AsyncMock(
+            return_value=_records_response(fetched=1, complete=True)
+        )
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records", {"pipe_id": pipe_id, "fetch_all": True}
+            )
+        payload = extract_payload(result)
+        assert payload["success"] is True
+        assert payload["data"]["complete"] is True
+        assert payload["data"]["fetched"] == 1
+        assert payload["data"]["records"]["totalCount"] == 1
+        assert "pagination" not in payload
+
+    async def test_get_records_first_emits_pagination(
+        self,
+        client_session,
+        mock_pipefy_client,
+        pipe_id,
+        extract_payload,
+        unified_envelope,
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=_records_response())
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records", {"pipe_id": pipe_id, "first": 10}
+            )
+        payload = extract_payload(result)
+        assert payload["pagination"] == {
+            "has_more": False,
+            "end_cursor": "c1==",
+            "page_size": 10,
+        }
+
+
 @pytest.mark.anyio
 class TestFindCardsTool:
     async def test_find_cards_forwards_params_to_client(
