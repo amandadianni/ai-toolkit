@@ -7,7 +7,6 @@ import pytest
 from _shared.fixture_ids import EXAMPLE_PHASE_ID, EXAMPLE_PIPE_ID
 from _shared.mock_clients import mock_executor
 
-from pipefy_sdk.graphql_executor import PipefyGraphQLError
 from pipefy_sdk.queries.card_queries import (
     CREATE_CARD_MUTATION,
     FIND_CARDS_QUERY,
@@ -575,6 +574,21 @@ async def test_get_records_sends_repo_id_and_omits_none_arguments():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_get_records_returns_the_page_unchanged():
+    page = {
+        "records": {
+            "totalCount": 120,
+            "pageInfo": {"hasNextPage": True, "endCursor": "c1=="},
+            "edges": [{"node": {"id": "1", "labels": [], "assignees": []}}],
+        }
+    }
+    service, _ = _make_service(page)
+
+    assert await service.get_records(EXAMPLE_PIPE_ID, first=1) == page
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_get_records_sends_every_argument():
     where = {"field": _FIELD_UUID, "eq": "x"}
     order_by = [{"attribute": "CREATED_AT", "direction": "DESC"}]
@@ -626,126 +640,3 @@ async def test_get_records_rejects_field_slug_before_calling(where):
         await service.get_records(EXAMPLE_PIPE_ID, where)
 
     executor.execute_query.assert_not_called()
-
-
-def _records_page(total, ids, end_cursor, has_next):
-    return {
-        "records": {
-            "totalCount": total,
-            "pageInfo": {"hasNextPage": has_next, "endCursor": end_cursor},
-            "edges": [{"node": {"id": i}} for i in ids],
-        }
-    }
-
-
-def _service_with_pages(*pages):
-    executor = mock_executor(side_effect=list(pages))
-    return CardService(executor=executor), executor
-
-
-def _sent_cursors(executor):
-    return [c[0][1].get("after") for c in executor.execute_query.call_args_list]
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-@pytest.mark.parametrize("max_cards", [0, 2001])
-async def test_get_records_rejects_max_cards_out_of_range(max_cards):
-    service, executor = _make_service(_EMPTY_RECORDS)
-    with pytest.raises(ValueError, match="max_cards"):
-        await service.get_records(EXAMPLE_PIPE_ID, max_cards=max_cards)
-
-    executor.execute_query.assert_not_called()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_follows_end_cursor_exactly():
-    service, executor = _service_with_pages(
-        _records_page(5, ["1", "2"], "c1==", True),
-        _records_page(5, ["3", "4"], "c2==", True),
-        _records_page(5, ["5"], "c3==", False),
-    )
-    result = await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True, first=10)
-
-    assert _sent_cursors(executor) == [None, "c1==", "c2=="]
-    assert all(c[0][1]["first"] == 50 for c in executor.execute_query.call_args_list)
-    assert [e["node"]["id"] for e in result["records"]["edges"]] == [
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-    ]
-    assert result["records"]["totalCount"] == 5
-    assert result["records"]["pageInfo"] == {"hasNextPage": False, "endCursor": "c3=="}
-    assert result["fetched"] == 5
-    assert result["complete"] is True
-    assert "message" not in result and "error" not in result
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_stops_when_total_is_above_max_cards():
-    service, executor = _service_with_pages(
-        _records_page(1500, ["1", "2"], "c1==", True)
-    )
-    result = await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True)
-
-    assert executor.execute_query.call_count == 1
-    assert result["fetched"] == 2
-    assert result["complete"] is False
-    assert result["message"] == (
-        "totalCount 1500 is above max_cards 1000; narrow the filter"
-    )
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_returns_incomplete_on_later_page_error():
-    service, _ = _service_with_pages(
-        _records_page(4, ["1", "2"], "c1==", True),
-        PipefyGraphQLError([{"message": "Permission denied"}]),
-    )
-    result = await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True)
-
-    assert [e["node"]["id"] for e in result["records"]["edges"]] == ["1", "2"]
-    assert result["fetched"] == 2
-    assert result["complete"] is False
-    assert result["error"] == "Permission denied"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_raises_on_first_page_error():
-    service, _ = _service_with_pages(
-        PipefyGraphQLError([{"message": "Permission denied"}])
-    )
-    with pytest.raises(PipefyGraphQLError):
-        await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_stops_on_repeated_cursor():
-    service, executor = _service_with_pages(
-        _records_page(6, ["1", "2"], "c1==", True),
-        _records_page(6, ["3", "4"], "c1==", True),
-    )
-    result = await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True)
-
-    assert executor.execute_query.call_count == 2
-    assert result["fetched"] == 4
-    assert result["complete"] is False
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_records_fetch_all_caps_page_count():
-    pages = [_records_page(100, [f"{i}"], f"c{i}==", True) for i in range(5)]
-    service, executor = _service_with_pages(*pages)
-    result = await service.get_records(EXAMPLE_PIPE_ID, fetch_all=True, max_cards=100)
-
-    assert executor.execute_query.call_count == 2
-    assert result["fetched"] == 2
-    assert result["complete"] is False

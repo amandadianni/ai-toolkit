@@ -919,28 +919,10 @@ async def test_get_records_delegates_every_argument_to_service():
     order_by = [{"attribute": "CREATED_AT", "direction": "ASC"}]
 
     result = await client.get_records(
-        "1",
-        where,
-        "term",
-        "2",
-        order_by,
-        True,
-        first=10,
-        after="c",
-        fetch_all=True,
-        max_cards=200,
+        "1", where, "term", "2", order_by, True, first=10, after="c"
     )
 
     card_service.get_records.assert_awaited_once_with(
-        "1",
-        where,
-        "term",
-        "2",
-        order_by,
-        True,
-        first=10,
-        after="c",
-        fetch_all=True,
-        max_cards=200,
+        "1", where, "term", "2", order_by, True, first=10, after="c"
     )
     assert result == expected

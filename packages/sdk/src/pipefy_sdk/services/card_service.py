@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import math
 from typing import Any
 
-from pipefy_sdk.graphql_executor import GraphQLExecutor, PipefyGraphQLError
+from pipefy_sdk.graphql_executor import GraphQLExecutor
 from pipefy_sdk.queries.card_queries import (
     CREATE_CARD_MUTATION,
     CREATE_COMMENT_MUTATION,
@@ -32,7 +31,6 @@ from pipefy_sdk.utils.formatters import (
 )
 
 RECORDS_MAX_PAGE_SIZE = 50
-RECORDS_MAX_CARDS_LIMIT = 2000
 
 
 class CardService:
@@ -170,18 +168,9 @@ class CardService:
         *,
         first: int | None = None,
         after: str | None = None,
-        fetch_all: bool = False,
-        max_cards: int = 1000,
     ) -> dict:
-        if not 1 <= max_cards <= RECORDS_MAX_CARDS_LIMIT:
-            raise ValueError(
-                f"max_cards must be between 1 and {RECORDS_MAX_CARDS_LIMIT}, "
-                f"got {max_cards}"
-            )
         if where is not None:
             validate_record_filter(where)
-        if fetch_all:
-            first = RECORDS_MAX_PAGE_SIZE
         variables: dict[str, Any] = {
             "repoId": str(pipe_id),
             "includeFields": include_fields,
@@ -195,50 +184,7 @@ class CardService:
             "after": after,
         }
         variables.update({k: v for k, v in optional.items() if v is not None})
-        if fetch_all:
-            return await self._fetch_all_records(variables, max_cards)
         return await self._executor.execute_query(GET_RECORDS_QUERY, variables)
-
-    async def _fetch_all_records(
-        self, variables: dict[str, Any], max_cards: int
-    ) -> dict:
-        data = await self._executor.execute_query(GET_RECORDS_QUERY, variables)
-        total = data["records"]["totalCount"]
-        page_info = data["records"]["pageInfo"]
-        edges = list(data["records"]["edges"])
-        extra: dict[str, str] = {}
-
-        if total > max_cards:
-            extra["message"] = (
-                f"totalCount {total} is above max_cards {max_cards}; narrow the filter"
-            )
-        else:
-            max_pages = math.ceil(max_cards / RECORDS_MAX_PAGE_SIZE)
-            pages = 1
-            seen = {variables.get("after")}
-            while page_info.get("hasNextPage") and pages < max_pages:
-                cursor = page_info.get("endCursor")
-                if not cursor or cursor in seen:
-                    break
-                seen.add(cursor)
-                try:
-                    page = await self._executor.execute_query(
-                        GET_RECORDS_QUERY, {**variables, "after": cursor}
-                    )
-                except PipefyGraphQLError as exc:
-                    # Page 1 succeeded, so hand back what we have marked incomplete.
-                    extra["error"] = str(exc)
-                    break
-                edges.extend(page["records"]["edges"])
-                page_info = page["records"]["pageInfo"]
-                pages += 1
-
-        return {
-            "records": {"totalCount": total, "pageInfo": page_info, "edges": edges},
-            "fetched": len(edges),
-            "complete": len(edges) == total,
-            **extra,
-        }
 
     async def move_card_to_phase(
         self, card_id: str | int, destination_phase_id: str | int
