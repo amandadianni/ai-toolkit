@@ -106,3 +106,19 @@ def test_validate_record_filter_still_checks_fields_beside_malformed_nodes():
         validate_record_filter(
             cast(RecordFilter, {"and": ["x", {"field": "total_value", "eq": 1}]})
         )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "field",
+    [
+        _FIELD_UUID.replace("-", ""),
+        "{" + _FIELD_UUID + "}",
+        "urn:uuid:" + _FIELD_UUID,
+        " " + _FIELD_UUID + " ",
+        _FIELD_UUID.upper(),
+    ],
+)
+def test_validate_record_filter_rejects_non_canonical_uuids(field):
+    with pytest.raises(ValueError, match="lowercase with hyphens"):
+        validate_record_filter({"field": field, "eq": "x"})

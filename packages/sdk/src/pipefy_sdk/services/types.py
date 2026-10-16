@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Literal
 
 from pydantic import ConfigDict, with_config
 from typing_extensions import TypedDict
-
-from pipefy_sdk.utils.organization_identifiers import looks_like_uuid
 
 
 class CardSearch(TypedDict, total=False):
@@ -79,6 +78,15 @@ class RecordOrder(TypedDict, total=False):
     direction: Literal["ASC", "DESC"]
 
 
+def _is_canonical_uuid(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return str(uuid.UUID(value)) == value
+    except ValueError:
+        return False
+
+
 def validate_record_filter(where: RecordFilter) -> None:
     """Raise ``ValueError`` when any ``field`` in the filter tree is not a uuid.
 
@@ -87,10 +95,10 @@ def validate_record_filter(where: RecordFilter) -> None:
     if not isinstance(where, dict):
         return
     field = where.get("field")
-    if field is not None and not (isinstance(field, str) and looks_like_uuid(field)):
+    if field is not None and not _is_canonical_uuid(field):
         raise ValueError(
             "field must be the custom field uuid (from get_phase_fields), "
-            f"got {field!r}"
+            f"lowercase with hyphens, got {field!r}"
         )
     for key in ("and", "or"):
         children = where.get(key)
