@@ -3,11 +3,12 @@
 from typing import cast
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from pipefy_sdk.services.types import (
     CardSearch,
     RecordFilter,
+    RecordOrder,
     copy_card_search,
     validate_record_filter,
 )
@@ -56,3 +57,30 @@ def test_validate_record_filter_accepts_field_uuid():
 def test_validate_record_filter_rejects_slug_anywhere(where):
     with pytest.raises(ValueError, match="uuid.*'total_value'"):
         validate_record_filter(cast(RecordFilter, where))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "where",
+    [
+        {"attribute": "TITLE", "bogus_op": "x"},
+        {"AND": [{"attribute": "TITLE", "eq": "a"}]},
+        {"attribute": "FINISHED_AT", "between": {"min": 1, "max": 2, "x": 3}},
+    ],
+)
+def test_record_filter_rejects_unknown_keys(where):
+    with pytest.raises(ValidationError, match="extra"):
+        TypeAdapter(RecordFilter).validate_python(where)
+
+
+@pytest.mark.unit
+def test_record_order_rejects_unknown_keys():
+    with pytest.raises(ValidationError, match="extra"):
+        TypeAdapter(RecordOrder).validate_python({"attribute": "TITLE", "dir": "ASC"})
+
+
+@pytest.mark.unit
+def test_record_filter_json_schema_forbids_additional_properties():
+    defs = TypeAdapter(RecordFilter).json_schema()["$defs"]
+    assert defs["RecordFilter"]["additionalProperties"] is False
+    assert defs["RecordRange"]["additionalProperties"] is False
