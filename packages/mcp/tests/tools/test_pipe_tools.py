@@ -27,7 +27,7 @@ from pipefy_mcp.tools.pipe_tool_helpers import (
     DeleteCardErrorPayload,
 )
 from pipefy_mcp.tools.pipe_tools import FIND_CARDS_RESPONSE_KEY, PipeTools
-from tools.conftest import build_tool_test_server
+from tools.conftest import assert_invalid_arguments_envelope, build_tool_test_server
 from tools.destructive_confirm_test_support import confirm_after_preview
 
 
@@ -1564,6 +1564,24 @@ class TestGetRecordsTool:
         assert payload["success"] is False
         assert payload["error"]["code"] == "INVALID_ARGUMENTS"
         assert "uuid" in tool_error_message(payload)
+
+    @pytest.mark.parametrize(
+        "where",
+        [
+            {"attribute": "TITLE", "bogus_op": "x"},
+            {"AND": [{"attribute": "TITLE", "eq": "a"}]},
+        ],
+    )
+    async def test_get_records_unknown_filter_key_returns_invalid_arguments(
+        self, client_session, mock_pipefy_client, pipe_id, where
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=_records_response())
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records", {"pipe_id": pipe_id, "where": where}
+            )
+        assert_invalid_arguments_envelope(result)
+        mock_pipefy_client.get_records.assert_not_called()
 
     async def test_get_records_permission_denied_says_pipe_is_not_visible(
         self, client_session, mock_pipefy_client, pipe_id, extract_payload
