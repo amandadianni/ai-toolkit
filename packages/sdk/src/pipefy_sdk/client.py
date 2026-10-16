@@ -1678,13 +1678,10 @@ class PipefyClient:
     ) -> dict:
         """List, count and filter the cards of a pipe (the ``records`` GraphQL query).
 
-        Returns ``{"records": {totalCount, pageInfo, edges}}`` in camelCase, where
-        ``totalCount`` counts the whole result. In ``where``, ``field`` must be the
-        custom field uuid (``ValueError`` before any call otherwise); on ASSIGNEES and
-        LABELS ``in`` matches any and ``contains`` all; dates are ISO 8601 with an
-        offset. Pages hold at most 50 cards (a larger ``first`` is sent as 50), and
-        with ``where`` or ``search_term`` paging stops at 10,000 cards. To read every
-        page, pass ``pageInfo.endCursor`` back as ``after`` until ``hasNextPage`` is false.
+        Returns camelCase ``{"records": {totalCount, pageInfo, edges}}``; ``totalCount`` is the whole result.
+        ``field`` takes the lowercase field uuid (else ``ValueError`` before any call); ``in`` matches
+        any and ``contains`` all; dates are ISO 8601 with an offset. ``first`` is capped at 50, and with
+        ``where`` or ``search_term`` pages stop at 10,000. Page by passing ``endCursor`` as ``after``.
         """
         return await self._card_service.get_records(
             pipe_id,
