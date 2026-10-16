@@ -84,6 +84,8 @@ def validate_record_filter(where: RecordFilter) -> None:
 
     Core answers a slug with a generic internal error, so this names the cause first.
     """
+    if not isinstance(where, dict):
+        return
     field = where.get("field")
     if field is not None and not (isinstance(field, str) and looks_like_uuid(field)):
         raise ValueError(
@@ -91,8 +93,10 @@ def validate_record_filter(where: RecordFilter) -> None:
             f"got {field!r}"
         )
     for key in ("and", "or"):
-        for child in where.get(key) or []:
-            validate_record_filter(child)
+        children = where.get(key)
+        if isinstance(children, list):
+            for child in children:
+                validate_record_filter(child)
 
 
 class AiAgentGraphPayload(TypedDict, total=False):
