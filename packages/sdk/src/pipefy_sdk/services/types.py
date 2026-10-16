@@ -87,11 +87,8 @@ def _is_canonical_uuid(value: object) -> bool:
         return False
 
 
+# The API answers a slug or a non-canonical uuid with a generic internal error.
 def validate_record_filter(where: RecordFilter) -> None:
-    """Raise ``ValueError`` when any ``field`` in the filter tree is not a uuid.
-
-    Core answers a slug with a generic internal error, so this names the cause first.
-    """
     if not isinstance(where, dict):
         return
     field = where.get("field")
