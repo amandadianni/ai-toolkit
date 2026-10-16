@@ -173,7 +173,10 @@ Before `move_card_to_phase`, call `get_phase_allowed_move_targets`. Required emp
 In `where`, `field` must be the custom field uuid from `get_phase_fields`; a slug is rejected. Dates are ISO 8601 with an offset, and `between` takes `{"min": ..., "max": ...}`.
 With `where` or `search_term`, pages stop at 10,000 cards.
 To list every card, page with `after` set to the previous `pageInfo.endCursor` until `hasNextPage` is false, and check that the rows add up to `totalCount`.
-`get_records pipe_id=67890 where={"attribute":"FINISHED_AT","between":{"min":"2026-01-01T00:00:00-03:00","max":"2026-01-31T23:59:59-03:00"}}`
+
+```
+get_records pipe_id=67890 where={"attribute":"FINISHED_AT","between":{"min":"2026-01-01T00:00:00-03:00","max":"2026-01-31T23:59:59-03:00"}}
+```
 
 ### Pagination for get_cards
 
