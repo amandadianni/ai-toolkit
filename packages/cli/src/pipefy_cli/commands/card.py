@@ -6,6 +6,7 @@ from typing import Any
 
 import typer
 from pipefy_sdk import (
+    RECORDS_MAX_PAGE_SIZE,
     CardSearch,
     CommentInput,
     DeleteCommentInput,
@@ -33,8 +34,6 @@ from pipefy_cli.commands._common import (
 
 card_app = typer.Typer(help="Card operations.", no_args_is_help=True)
 comment_app = typer.Typer(help="Card comments.", no_args_is_help=True)
-
-_RECORDS_PAGE_SIZE_MAX = 50
 
 
 def _parse_card_search_json(raw: str | None) -> CardSearch | None:
@@ -218,7 +217,7 @@ def card_records(
     first: int | None = typer.Option(
         None,
         "--first",
-        help=f"Max cards per page ({_CARDS_PAGE_SIZE_MIN}-{_RECORDS_PAGE_SIZE_MAX}).",
+        help=f"Max cards per page ({_CARDS_PAGE_SIZE_MIN}-{RECORDS_MAX_PAGE_SIZE}).",
     ),
     after: str | None = typer.Option(
         None,
@@ -243,7 +242,7 @@ def card_records(
     order_by: list[RecordOrder] | None = parse_json_value(order_by_json, "--order-by")
     if order_by is not None and not isinstance(order_by, list):
         raise typer.BadParameter("--order-by must be a JSON array")
-    first_validated = validate_cards_page_size(first, max_size=_RECORDS_PAGE_SIZE_MAX)
+    first_validated = validate_cards_page_size(first, max_size=RECORDS_MAX_PAGE_SIZE)
 
     async def factory(client: PipefyClient):
         return await client.get_records(

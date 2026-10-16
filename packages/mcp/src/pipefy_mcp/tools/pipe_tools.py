@@ -8,6 +8,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import NoBackChannelError
 from mcp.types import ToolAnnotations
 from pipefy_sdk import (
+    RECORDS_MAX_PAGE_SIZE,
     CardSearch,
     CommentInput,
     DeleteCommentInput,
@@ -770,7 +771,7 @@ class PipeTools:
             """
             client = get_pipefy_client(ctx)
             if first is not None:
-                first, err = validate_page_size(first, max_size=50)
+                first, err = validate_page_size(first, max_size=RECORDS_MAX_PAGE_SIZE)
                 if err is not None:
                     return err
 
