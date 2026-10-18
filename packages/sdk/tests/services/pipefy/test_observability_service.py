@@ -7,6 +7,7 @@ import httpx
 import pytest
 from _shared.fixture_ids import EXAMPLE_NUMERIC_ORG_ID, EXAMPLE_ORG_UUID
 from _shared.mock_clients import mock_executor
+from graphql import print_ast
 from openpyxl import Workbook
 
 from pipefy_sdk import PipefyGraphQLError
@@ -800,3 +801,11 @@ async def test_get_automation_execution_metrics_partial_sort_criteria():
 
     _, variables = executor.execute.call_args[0]
     assert variables["sort"] == {"by": "created_at"}
+
+
+def test_get_ai_agent_log_details_query_selects_llm_config_and_updated_at():
+    printed = print_ast(GET_AI_AGENT_LOG_DETAILS_QUERY.document)
+    assert "updatedAt" in printed
+    llm_block = printed.split("llmConfigInfo")[1]
+    for field in ("model", "name", "provider"):
+        assert field in llm_block
