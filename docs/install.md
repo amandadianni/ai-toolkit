@@ -60,6 +60,8 @@ Complete the browser login when prompted (`claude mcp login pipefy` if the clien
 /pipefy:pipefy-login
 ```
 
+On Claude Code 2.1.275 or later, the first two lines are one command: `/plugin install pipefy --marketplace pipefy/ai-toolkit` adds the marketplace, after asking you to confirm, and installs the plugin.
+
 Type the slash commands **in order** (the model cannot invoke `/plugin …` for you). `/plugin install pipefy` (`/plugin install pipefy@pipefy` is the same install, written with the marketplace name) registers the hosted MCP server plus the `/pipefy:install` and `/pipefy:pipefy-login` commands; `/pipefy:install` runs `uv tool install --force pipefy-cli` from PyPI once to put `pipefy` on PATH (idempotent); `/pipefy:pipefy-login` runs the OAuth browser flow for the CLI. MCP sign-in for the hosted server is the in-client OAuth prompt. Hand-wired local stdio, the macOS `errSecInvalidOwnerEdit` keychain note, and the contributor local-clone alternative: [`packages/mcp/README.md`](../packages/mcp/README.md). To run a local branch as the plugin, see [Test the plugin from a local checkout](#test-the-claude-code-plugin-from-a-local-checkout).
 
 ## 3. Quick-install script

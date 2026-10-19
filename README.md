@@ -44,7 +44,7 @@ Pick the row for your client and run its command. Flags, caveats, and the remain
 | You are in | Path | Start with |
 |---|---|---|
 | Claude Code, fastest start | [Hosted MCP](docs/install.md#1-hosted-mcp-claude-code) | `claude mcp add --transport http --scope user --client-id pipefy-mcp pipefy https://mcp.pipefy.com/mcp` |
-| Claude Code, with skills, slash commands, and the CLI | [Claude Code plugin](docs/install.md#2-claude-code-plugin) | `/plugin marketplace add pipefy/ai-toolkit`, then `/plugin install pipefy`; `/pipefy:install` adds the CLI and `/pipefy:pipefy-login` signs it in |
+| Claude Code, with skills, slash commands, and the CLI | [Claude Code plugin](docs/install.md#2-claude-code-plugin) | `/plugin install pipefy --marketplace pipefy/ai-toolkit` (Claude Code 2.1.275 or later; the install guide has the two-step form for older versions); `/pipefy:install` adds the CLI and `/pipefy:pipefy-login` signs it in |
 | Cursor | [Cursor Marketplace plugin](docs/install.md#6-cursor-marketplace-plugin) | Install **Pipefy** from the Cursor Marketplace |
 | Cursor, Claude Desktop, or Codex on macOS or Linux, when you need the local-file tools or the CLI | [Quick-install script](docs/install.md#3-quick-install-script) | Run the install script with `--client cursor`, `claude-desktop`, or `codex` |
 | A terminal, a script, or CI | [CLI only](docs/install.md#4-cli-only) | `uv tool install pipefy-cli`, then `pipefy auth login` |
