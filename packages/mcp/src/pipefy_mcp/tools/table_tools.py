@@ -21,6 +21,7 @@ from pipefy_mcp.tools.destructive_tool_guard import check_destructive_confirmati
 from pipefy_mcp.tools.graphql_error_helpers import (
     extract_graphql_correlation_id,
     extract_graphql_error_codes,
+    timeout_message_or,
     with_debug_suffix,
 )
 from pipefy_mcp.tools.pagination_helpers import (
@@ -548,10 +549,13 @@ class TableTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_table_error_to_message(
-                    table_id=table_id,
-                    table_name=table_name,
-                    codes=codes,
+                base = timeout_message_or(
+                    exc,
+                    map_delete_table_error_to_message(
+                        table_id=table_id,
+                        table_name=table_name,
+                        codes=codes,
+                    ),
                 )
                 return build_delete_table_error_payload(
                     message=with_debug_suffix(
@@ -588,10 +592,13 @@ class TableTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_table_error_to_message(
-                    table_id=table_id,
-                    table_name=table_name,
-                    codes=codes,
+                base = timeout_message_or(
+                    exc,
+                    map_delete_table_error_to_message(
+                        table_id=table_id,
+                        table_name=table_name,
+                        codes=codes,
+                    ),
                 )
                 return build_delete_table_error_payload(
                     message=with_debug_suffix(

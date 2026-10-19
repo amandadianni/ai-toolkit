@@ -90,6 +90,10 @@ jobs:
     # project-scope registration, and tearing down against one is a different
     # scenario from a user's machine.
     - name: Install
+      env:
+        # install.sh prefers GH_TOKEN for api.github.com; without it, shared
+        # runner IPs hit the unauthenticated rate limit (HTTP 403).
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cd "$HOME/roundtrip"
         sh "$GITHUB_WORKSPACE/install.sh" --yes --client cursor
