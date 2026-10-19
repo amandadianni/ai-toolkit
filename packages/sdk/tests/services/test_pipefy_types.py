@@ -11,6 +11,7 @@ from pipefy_sdk.services.types import (
     RecordOrder,
     copy_card_search,
     validate_record_filter,
+    validate_record_order,
 )
 
 
@@ -122,3 +123,25 @@ def test_validate_record_filter_still_checks_fields_beside_malformed_nodes():
 def test_validate_record_filter_rejects_non_canonical_uuids(field):
     with pytest.raises(ValueError, match="lowercase with hyphens"):
         validate_record_filter({"field": field, "eq": "x"})
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("field", ["total_value", _FIELD_UUID.upper()])
+def test_validate_record_order_rejects_non_uuid_fields(field):
+    with pytest.raises(ValueError, match="lowercase with hyphens"):
+        validate_record_order(
+            [{"attribute": "TITLE"}, {"field": field, "direction": "DESC"}]
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "order_by",
+    [
+        [],
+        [{"attribute": "CREATED_AT", "direction": "ASC"}],
+        [{"field": _FIELD_UUID, "direction": "DESC"}],
+    ],
+)
+def test_validate_record_order_accepts_attributes_and_uuids(order_by):
+    validate_record_order(order_by)
