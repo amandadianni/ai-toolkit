@@ -1466,9 +1466,10 @@ Usage: pipefy card records [OPTIONS]
  List, count and filter the cards of a pipe (records query).
 
  totalCount counts the whole result. On ASSIGNEES and LABELS, in matches any
- and contains matches all; dates are ISO 8601 with an offset. With --where or
- --search-term, paging stops at 10,000 cards. Page with --after set to
- pageInfo.endCursor until hasNextPage is false.
+ and contains matches all; like and ilike match a plain substring, with no
+ wildcards; dates are ISO 8601 with an offset. With --where or --search-term,
+ paging stops at 10,000 cards. Page with --after set to pageInfo.endCursor
+ until hasNextPage is false.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ *  --pipe                    TEXT     Pipe id whose cards to load.           │
@@ -1476,12 +1477,17 @@ Usage: pipefy card records [OPTIONS]
 │    --where                   TEXT     JSON filter object, e.g. {"attribute": │
 │                                       "ASSIGNEES", "in": ["<user id>"]};     │
 │                                       and/or take a list of filters. field   │
-│                                       must be the custom field uuid.         │
-│    --search-term             TEXT     Match title, subtitle fields and card  │
-│                                       id.                                    │
+│                                       must be the custom field uuid          │
+│                                       (lowercase, hyphenated). like/ilike    │
+│                                       match a plain substring; % and _ are   │
+│                                       literal.                               │
+│    --search-term             TEXT     Match title and subtitle fields, not   │
+│                                       the card id; for an id use --where     │
+│                                       '{"attribute": "ID", "eq": "<id>"}'.   │
 │    --phase                   TEXT     Only cards currently in this phase.    │
 │    --order-by                TEXT     JSON list, e.g. [{"attribute":         │
-│                                       "CREATED_AT", "direction": "DESC"}].   │
+│                                       "CREATED_AT", "direction": "DESC"}];   │
+│                                       field takes the custom field uuid.     │
 │    --include-fields                   Include each card's custom fields.     │
 │    --first                   INTEGER  Max cards per page (1-50).             │
 │    --after                   TEXT     Pagination cursor                      │

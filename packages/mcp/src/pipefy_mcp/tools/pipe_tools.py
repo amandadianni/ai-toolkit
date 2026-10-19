@@ -750,9 +750,13 @@ class PipeTools:
             Returns ``records.totalCount`` (the whole result, not the page),
             ``pageInfo`` and ``edges`` in camelCase. ``where`` is a filter node
             (``attribute`` or ``field`` plus one operator) or ``and``/``or`` lists of
-            nodes. ``field`` must be the custom field uuid from ``get_phase_fields``.
-            On ASSIGNEES and LABELS, ``in`` matches any and ``contains`` matches all.
-            Dates are ISO 8601 with an offset. Pages hold at most 50 cards; with
+            nodes. ``field`` (in ``where`` and ``order_by``) must be the custom field
+            uuid from ``get_phase_fields``; for a start-form field, pass ``get_pipe``'s
+            ``startFormPhaseId`` as its ``phase_id``. CREATOR takes a user id and
+            CREATOR_EMAIL an email. On ASSIGNEES and LABELS, ``in`` matches any and
+            ``contains`` matches all. ``like`` and ``ilike`` match a plain substring
+            (``ilike`` ignores case); ``%`` and ``_`` are literal characters, not
+            wildcards. Dates are ISO 8601 with an offset. Pages hold at most 50 cards; with
             ``where`` or ``search_term`` paging stops at 10,000 cards.
 
             To read every page, pass ``pageInfo.endCursor`` back as ``after`` until
@@ -761,9 +765,10 @@ class PipeTools:
             Args:
                 pipe_id: The ID of the pipe.
                 where: Filter tree, e.g. ``{"attribute": "ASSIGNEES", "in": ["<user id>"]}``.
-                search_term: Matches title, subtitle fields and card id.
+                search_term: Matches title and subtitle fields, not the card id; to
+                    find a card by id, use ``where={"attribute": "ID", "eq": "<id>"}``.
                 phase_id: Only cards currently in this phase.
-                order_by: List of ``{attribute or field, direction}`` (ASC or DESC).
+                order_by: List of ``{attribute or field, direction}`` (ASC or DESC); ``field`` is the field uuid.
                 include_fields: If True, include each card's custom fields.
                 first: Cards per page (1-50).
                 after: ``pageInfo.endCursor`` from the previous page, passed back exactly.

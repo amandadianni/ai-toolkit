@@ -170,7 +170,8 @@ Before `move_card_to_phase`, call `get_phase_allowed_move_targets`. Required emp
 ### Count and filter cards
 
 `get_records` answers "how many" in one call: read `records.totalCount`, not the length of a page. A count per group (per assignee, per label) is one call per group.
-In `where`, `field` must be the custom field uuid from `get_phase_fields`; a slug is rejected. Dates are ISO 8601 with an offset, and `between` takes `{"min": ..., "max": ...}`.
+In `where` and `order_by`, `field` must be the custom field uuid from `get_phase_fields` (for a start-form field, pass `get_pipe`'s `startFormPhaseId` as the phase); a slug is rejected. Dates are ISO 8601 with an offset, and `between` takes `{"min": ..., "max": ...}`.
+`like` and `ilike` match a plain substring: `%` and `_` are literal, so `ilike: "acme"`, not `"%acme%"`. `search_term` does not match card ids; use `where={"attribute": "ID", "eq": "<id>"}`.
 With `where` or `search_term`, pages stop at 10,000 cards.
 To list every card, page with `after` set to the previous `pageInfo.endCursor` until `hasNextPage` is false, and check that the rows add up to `totalCount`.
 
