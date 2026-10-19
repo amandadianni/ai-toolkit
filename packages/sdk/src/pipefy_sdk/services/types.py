@@ -96,22 +96,24 @@ def _check_field_uuid(field: object) -> None:
         )
 
 
+# GraphQL coerces a single value to a one-item list, so the API runs it.
+def _as_list(value: object) -> list[Any]:
+    if isinstance(value, dict):
+        return [value]
+    return value if isinstance(value, list) else []
+
+
 def validate_record_filter(where: RecordFilter) -> None:
     if not isinstance(where, dict):
         return
     _check_field_uuid(where.get("field"))
     for key in ("and", "or"):
-        children = where.get(key)
-        # GraphQL coerces a single value to a one-item list, so the API runs it.
-        if isinstance(children, dict):
-            children = [children]
-        if isinstance(children, list):
-            for child in children:
-                validate_record_filter(child)
+        for child in _as_list(where.get(key)):
+            validate_record_filter(child)
 
 
 def validate_record_order(order_by: list[RecordOrder]) -> None:
-    for entry in order_by:
+    for entry in _as_list(order_by):
         if isinstance(entry, dict):
             _check_field_uuid(entry.get("field"))
 

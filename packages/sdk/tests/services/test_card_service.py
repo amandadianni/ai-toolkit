@@ -3,6 +3,8 @@
 Tests validate the card-related operations without requiring real API credentials.
 """
 
+from typing import Any, cast
+
 import pytest
 from _shared.fixture_ids import EXAMPLE_PHASE_ID, EXAMPLE_PIPE_ID
 from _shared.mock_clients import mock_executor
@@ -673,5 +675,18 @@ async def test_get_records_rejects_first_below_one(first):
     service, executor = _make_service(_EMPTY_RECORDS)
     with pytest.raises(ValueError, match="first"):
         await service.get_records(EXAMPLE_PIPE_ID, first=first)
+
+    executor.execute_query.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_records_rejects_a_single_order_by_object_with_a_slug():
+    service, executor = _make_service(_EMPTY_RECORDS)
+    with pytest.raises(ValueError, match="uuid"):
+        await service.get_records(
+            EXAMPLE_PIPE_ID,
+            order_by=cast(Any, {"field": "total_value", "direction": "ASC"}),
+        )
 
     executor.execute_query.assert_not_called()
