@@ -174,6 +174,8 @@ class CardService:
         # last page, so both mean "not given".
         where = where or None
         after = after or None
+        if first is not None and first < 1:
+            raise ValueError(f"first must be at least 1, got {first}")
         if where is not None:
             validate_record_filter(where)
         if order_by is not None:

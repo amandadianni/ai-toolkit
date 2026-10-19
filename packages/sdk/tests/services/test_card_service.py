@@ -664,3 +664,14 @@ async def test_get_records_treats_empty_where_and_after_as_absent():
         "repoId": EXAMPLE_PIPE_ID,
         "includeFields": False,
     }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first", [0, -5])
+async def test_get_records_rejects_first_below_one(first):
+    service, executor = _make_service(_EMPTY_RECORDS)
+    with pytest.raises(ValueError, match="first"):
+        await service.get_records(EXAMPLE_PIPE_ID, first=first)
+
+    executor.execute_query.assert_not_called()
