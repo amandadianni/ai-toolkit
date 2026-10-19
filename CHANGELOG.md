@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **SDK `get_records`**: `PipefyClient.get_records` lists, counts and filters the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. (#791)
+
 ### Fixed
 
 - **SDK GraphQL timeout**: a GraphQL call from the SDK, the MCP server, or the CLI that ran longer than 10 s stopped with a bare `TimeoutError`, the `gql` client's default execute timeout, although the SDK sets a 30 s request timeout. A call now waits up to 30 s, so a call that the API answers in 10 to 30 s returns its result instead of failing. A call past 30 s still fails, now with the descriptive error from #781. (#778)
