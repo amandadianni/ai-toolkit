@@ -795,3 +795,21 @@ def test_card_records_rejects_bad_filter_shapes_before_calling(
         assert result.exit_code == 2, (option, value)
         assert needle in re.sub(r"\x1b\[[0-9;]*m", "", result.stderr), (option, value)
     mock_client.get_records.assert_not_called()
+
+
+def test_card_records_forwards_first_and_after(
+    runner, clean_pipefy_env, saved_cwd, oauth_env
+):
+    oauth_env("records-paging")
+    mock_client = MagicMock()
+    mock_client.get_records = AsyncMock(
+        return_value={"records": {"totalCount": 0, "pageInfo": {}, "edges": []}}
+    )
+
+    result = _invoke_card_records(
+        runner, mock_client, "--pipe", "1", "--first", "50", "--after", "c1==", "--json"
+    )
+
+    assert result.exit_code == 0, result.stdout + (result.stderr or "")
+    _, kwargs = mock_client.get_records.await_args
+    assert kwargs == {"first": 50, "after": "c1=="}

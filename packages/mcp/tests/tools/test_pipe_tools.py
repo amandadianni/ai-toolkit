@@ -1643,6 +1643,7 @@ class TestGetRecordsTool:
             "end_cursor": "c1==",
             "page_size": 10,
         }
+        assert payload["data"] == _records_response()
 
 
 @pytest.mark.anyio
