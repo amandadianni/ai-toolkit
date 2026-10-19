@@ -102,6 +102,9 @@ def validate_record_filter(where: RecordFilter) -> None:
     _check_field_uuid(where.get("field"))
     for key in ("and", "or"):
         children = where.get(key)
+        # GraphQL coerces a single value to a one-item list, so the API runs it.
+        if isinstance(children, dict):
+            children = [children]
         if isinstance(children, list):
             for child in children:
                 validate_record_filter(child)
