@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pipefy_cli.main import app
@@ -776,3 +777,21 @@ def test_card_get_include_fields(runner, clean_pipefy_env, saved_cwd, oauth_env)
         )
     assert result.exit_code == 0
     mock_client.get_card.assert_awaited_once_with("1", include_fields=True)
+
+
+def test_card_records_rejects_bad_filter_shapes_before_calling(
+    runner, clean_pipefy_env, saved_cwd, oauth_env
+):
+    oauth_env("records-bad-shapes")
+    mock_client = MagicMock()
+    cases = (
+        ("--where", '{"attribute": "TITLE", "bogus_op": "x"}', "bogus_op"),
+        ("--where", '{"attribute": "created_at", "eq": 1}', "attribute"),
+        ("--order-by", '[{"attribute": "TITLE", "direction": "asc"}]', "direction"),
+        ("--order-by", '[{"field": "total_value"}]', "uuid"),
+    )
+    for option, value, needle in cases:
+        result = _invoke_card_records(runner, mock_client, "--pipe", "1", option, value)
+        assert result.exit_code == 2, (option, value)
+        assert needle in re.sub(r"\x1b\[[0-9;]*m", "", result.stderr), (option, value)
+    mock_client.get_records.assert_not_called()

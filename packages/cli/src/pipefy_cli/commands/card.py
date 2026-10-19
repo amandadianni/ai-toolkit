@@ -11,10 +11,10 @@ from pipefy_sdk import (
     CommentInput,
     DeleteCommentInput,
     PipefyClient,
-    RecordFilter,
-    RecordOrder,
     UpdateCommentInput,
     copy_card_search,
+    parse_record_filter,
+    parse_record_order,
 )
 from pydantic import ValidationError
 
@@ -238,10 +238,13 @@ def card_records(
     --search-term, paging stops at 10,000 cards. Page with --after set to
     pageInfo.endCursor until hasNextPage is false.
     """
-    where: RecordFilter | None = parse_json_object(where_json, "--where")
-    order_by: list[RecordOrder] | None = parse_json_value(order_by_json, "--order-by")
-    if order_by is not None and not isinstance(order_by, list):
-        raise typer.BadParameter("--order-by must be a JSON array")
+    where_raw = parse_json_value(where_json, "--where")
+    order_by_raw = parse_json_value(order_by_json, "--order-by")
+    try:
+        where = None if where_raw is None else parse_record_filter(where_raw)
+        order_by = None if order_by_raw is None else parse_record_order(order_by_raw)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     first_validated = validate_cards_page_size(first, max_size=RECORDS_MAX_PAGE_SIZE)
     phase_id = validate_optional_resource_id(phase_id, "phase_id")
 
