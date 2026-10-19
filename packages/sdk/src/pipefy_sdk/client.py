@@ -1679,9 +1679,10 @@ class PipefyClient:
         """List, count and filter the cards of a pipe (the ``records`` GraphQL query).
 
         Returns camelCase ``{"records": {totalCount, pageInfo, edges}}``; ``totalCount`` is the whole result.
-        ``field`` takes the lowercase field uuid (else ``ValueError`` before any call); ``in`` matches
-        any and ``contains`` all; dates are ISO 8601 with an offset. ``first`` is capped at 50, and with
-        ``where`` or ``search_term`` pages stop at 10,000. Page by passing ``endCursor`` as ``after``.
+        ``field`` (in ``where`` and ``order_by``) takes the lowercase, hyphenated field uuid, else ``ValueError``.
+        ``in`` matches any and ``contains`` all; ``like``/``ilike`` match a plain substring (``%`` is literal).
+        Dates are ISO 8601 with an offset. ``first`` is 1 to 50 (larger is capped); with ``where`` or
+        ``search_term`` pages stop at 10,000. Page by passing ``endCursor`` back as ``after``.
         """
         return await self._card_service.get_records(
             pipe_id,
