@@ -170,6 +170,12 @@ class CardService:
         first: int | None = None,
         after: str | None = None,
     ) -> dict:
+        # The API fails on an empty filter and answers an empty cursor with an empty
+        # last page, so both mean "not given".
+        where = where or None
+        after = after or None
+        if first is not None and first < 1:
+            raise ValueError(f"first must be at least 1, got {first}")
         if where is not None:
             validate_record_filter(where)
         if order_by is not None:

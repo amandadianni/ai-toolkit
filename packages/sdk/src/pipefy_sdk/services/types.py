@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from pydantic import ConfigDict, with_config
+from pydantic import ConfigDict, TypeAdapter, ValidationError, with_config
 from typing_extensions import TypedDict
 
 
@@ -29,8 +29,24 @@ def copy_card_search(search: CardSearch) -> CardSearch:
 
 RecordScalar = str | int | float | bool | None
 
-# Pydantic drops unknown keys by default, so a mistyped "AND" would become an
-# empty, unfiltered query; forbid them instead.
+RecordAttribute = Literal[
+    "ID",
+    "INDEX",
+    "TITLE",
+    "CREATOR",
+    "CREATOR_EMAIL",
+    "DUE_DATE",
+    "CREATED_AT",
+    "UPDATED_AT",
+    "FINISHED_AT",
+    "CURRENT_PHASE",
+    "LABELS",
+    "ASSIGNEES",
+    "EMAIL_READ",
+]
+
+# Pydantic drops unknown keys by default, so a mistyped "AND" would vanish and the
+# filter would be sent without it; forbid them instead.
 _FORBID_EXTRA = with_config(ConfigDict(extra="forbid"))
 
 
@@ -47,7 +63,7 @@ RecordFilter = _FORBID_EXTRA(
         {
             "and": list["RecordFilter"],
             "or": list["RecordFilter"],
-            "attribute": str,
+            "attribute": RecordAttribute,
             "field": str,
             "eq": RecordScalar,
             "neq": RecordScalar,
@@ -73,7 +89,7 @@ RecordFilter = _FORBID_EXTRA(
 
 @_FORBID_EXTRA
 class RecordOrder(TypedDict, total=False):
-    attribute: str
+    attribute: RecordAttribute
     field: str
     direction: Literal["ASC", "DESC"]
 
@@ -96,24 +112,55 @@ def _check_field_uuid(field: object) -> None:
         )
 
 
+# GraphQL coerces a single value to a one-item list, so the API runs it.
+def _as_list(value: object) -> list[Any]:
+    if isinstance(value, dict):
+        return [value]
+    return value if isinstance(value, list) else []
+
+
 def validate_record_filter(where: RecordFilter) -> None:
     if not isinstance(where, dict):
         return
     _check_field_uuid(where.get("field"))
     for key in ("and", "or"):
-        children = where.get(key)
-        # GraphQL coerces a single value to a one-item list, so the API runs it.
-        if isinstance(children, dict):
-            children = [children]
-        if isinstance(children, list):
-            for child in children:
-                validate_record_filter(child)
+        for child in _as_list(where.get(key)):
+            validate_record_filter(child)
 
 
 def validate_record_order(order_by: list[RecordOrder]) -> None:
-    for entry in order_by:
+    for entry in _as_list(order_by):
         if isinstance(entry, dict):
             _check_field_uuid(entry.get("field"))
+
+
+_RECORD_FILTER_ADAPTER: TypeAdapter[RecordFilter] = TypeAdapter(RecordFilter)
+_RECORD_ORDER_ADAPTER: TypeAdapter[list[RecordOrder]] = TypeAdapter(list[RecordOrder])
+
+
+def _parse_records_input(adapter: TypeAdapter[Any], raw: object, label: str) -> Any:
+    try:
+        return adapter.validate_python(raw)
+    except ValidationError as exc:
+        clauses = (
+            f"{'.'.join([label, *map(str, err['loc'])])}: {err['msg']}"
+            for err in exc.errors()
+        )
+        raise ValueError("; ".join(clauses)) from None
+
+
+def parse_record_filter(raw: object) -> RecordFilter:
+    """Parse untyped input into a ``RecordFilter``; raises ``ValueError`` naming each bad key or value."""
+    where = _parse_records_input(_RECORD_FILTER_ADAPTER, raw, "where")
+    validate_record_filter(where)
+    return where
+
+
+def parse_record_order(raw: object) -> list[RecordOrder]:
+    """Parse untyped input into a ``RecordOrder`` list; raises ``ValueError`` naming each bad key or value."""
+    order_by = _parse_records_input(_RECORD_ORDER_ADAPTER, raw, "order_by")
+    validate_record_order(order_by)
+    return order_by
 
 
 class AiAgentGraphPayload(TypedDict, total=False):

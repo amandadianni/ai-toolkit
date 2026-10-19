@@ -3,9 +3,13 @@
 Tests validate the card-related operations without requiring real API credentials.
 """
 
+import copy
+from typing import Any, cast
+
 import pytest
 from _shared.fixture_ids import EXAMPLE_PHASE_ID, EXAMPLE_PIPE_ID
 from _shared.mock_clients import mock_executor
+from graphql import print_ast
 
 from pipefy_sdk.queries.card_queries import (
     CREATE_CARD_MUTATION,
@@ -582,9 +586,21 @@ async def test_get_records_returns_the_page_unchanged():
             "edges": [{"node": {"id": "1", "labels": [], "assignees": []}}],
         }
     }
-    service, _ = _make_service(page)
+    service, _ = _make_service(copy.deepcopy(page))
 
     assert await service.get_records(EXAMPLE_PIPE_ID, first=1) == page
+
+
+@pytest.mark.unit
+def test_get_records_query_selects_count_cursor_and_arguments():
+    text = " ".join(print_ast(GET_RECORDS_QUERY.document).split())
+    assert (
+        "records( repoId: $repoId phaseId: $phaseId searchTerm: $searchTerm "
+        "where: $where orderBy: $orderBy first: $first after: $after )"
+    ) in text
+    assert "totalCount" in text
+    assert "pageInfo { hasNextPage endCursor }" in text
+    assert "edges { node {" in text
 
 
 @pytest.mark.unit
@@ -649,6 +665,42 @@ async def test_get_records_rejects_order_by_slug_before_calling():
     with pytest.raises(ValueError, match="uuid"):
         await service.get_records(
             EXAMPLE_PIPE_ID, order_by=[{"field": "total_value", "direction": "ASC"}]
+        )
+
+    executor.execute_query.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_records_treats_empty_where_and_after_as_absent():
+    service, executor = _make_service(_EMPTY_RECORDS)
+    await service.get_records(EXAMPLE_PIPE_ID, where={}, after="")
+
+    assert executor.execute_query.call_args[0][1] == {
+        "repoId": EXAMPLE_PIPE_ID,
+        "includeFields": False,
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first", [0, -5])
+async def test_get_records_rejects_first_below_one(first):
+    service, executor = _make_service(_EMPTY_RECORDS)
+    with pytest.raises(ValueError, match="first"):
+        await service.get_records(EXAMPLE_PIPE_ID, first=first)
+
+    executor.execute_query.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_records_rejects_a_single_order_by_object_with_a_slug():
+    service, executor = _make_service(_EMPTY_RECORDS)
+    with pytest.raises(ValueError, match="uuid"):
+        await service.get_records(
+            EXAMPLE_PIPE_ID,
+            order_by=cast(Any, {"field": "total_value", "direction": "ASC"}),
         )
 
     executor.execute_query.assert_not_called()
