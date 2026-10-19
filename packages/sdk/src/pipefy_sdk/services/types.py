@@ -29,8 +29,8 @@ def copy_card_search(search: CardSearch) -> CardSearch:
 
 RecordScalar = str | int | float | bool | None
 
-# Pydantic drops unknown keys by default, so a mistyped "AND" would become an
-# empty, unfiltered query; forbid them instead.
+# Pydantic drops unknown keys by default, so a mistyped "AND" would vanish and the
+# filter would be sent without it; forbid them instead.
 _FORBID_EXTRA = with_config(ConfigDict(extra="forbid"))
 
 

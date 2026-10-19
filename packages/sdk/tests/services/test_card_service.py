@@ -652,3 +652,15 @@ async def test_get_records_rejects_order_by_slug_before_calling():
         )
 
     executor.execute_query.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_records_treats_empty_where_and_after_as_absent():
+    service, executor = _make_service(_EMPTY_RECORDS)
+    await service.get_records(EXAMPLE_PIPE_ID, where={}, after="")
+
+    assert executor.execute_query.call_args[0][1] == {
+        "repoId": EXAMPLE_PIPE_ID,
+        "includeFields": False,
+    }
