@@ -640,3 +640,15 @@ async def test_get_records_rejects_field_slug_before_calling(where):
         await service.get_records(EXAMPLE_PIPE_ID, where)
 
     executor.execute_query.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_records_rejects_order_by_slug_before_calling():
+    service, executor = _make_service(_EMPTY_RECORDS)
+    with pytest.raises(ValueError, match="uuid"):
+        await service.get_records(
+            EXAMPLE_PIPE_ID, order_by=[{"field": "total_value", "direction": "ASC"}]
+        )
+
+    executor.execute_query.assert_not_called()

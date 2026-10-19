@@ -11,6 +11,7 @@ from pipefy_sdk.services.types import (
     RecordOrder,
     copy_card_search,
     validate_record_filter,
+    validate_record_order,
 )
 
 
@@ -91,8 +92,8 @@ def test_record_filter_json_schema_forbids_additional_properties():
     "where",
     [
         {"and": ["x"]},
-        {"and": {"field": "total_value"}},
         {"or": "x"},
+        {"and": {"attribute": "TITLE", "eq": "a"}},
         {"and": [None, 1, {"attribute": "TITLE", "eq": "a"}]},
     ],
 )
@@ -122,3 +123,38 @@ def test_validate_record_filter_still_checks_fields_beside_malformed_nodes():
 def test_validate_record_filter_rejects_non_canonical_uuids(field):
     with pytest.raises(ValueError, match="lowercase with hyphens"):
         validate_record_filter({"field": field, "eq": "x"})
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("field", ["total_value", _FIELD_UUID.upper()])
+def test_validate_record_order_rejects_non_uuid_fields(field):
+    with pytest.raises(ValueError, match="lowercase with hyphens"):
+        validate_record_order(
+            [{"attribute": "TITLE"}, {"field": field, "direction": "DESC"}]
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "order_by",
+    [
+        [],
+        [{"attribute": "CREATED_AT", "direction": "ASC"}],
+        [{"field": _FIELD_UUID, "direction": "DESC"}],
+    ],
+)
+def test_validate_record_order_accepts_attributes_and_uuids(order_by):
+    validate_record_order(order_by)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "where",
+    [
+        {"and": {"field": "total_value", "eq": 1}},
+        {"or": {"and": [{"field": "total_value", "eq": 1}]}},
+    ],
+)
+def test_validate_record_filter_checks_a_single_node_under_and_or(where):
+    with pytest.raises(ValueError, match="'total_value'"):
+        validate_record_filter(cast(RecordFilter, where))

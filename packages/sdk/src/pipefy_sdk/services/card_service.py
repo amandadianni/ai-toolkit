@@ -24,6 +24,7 @@ from pipefy_sdk.services.types import (
     RecordFilter,
     RecordOrder,
     validate_record_filter,
+    validate_record_order,
 )
 from pipefy_sdk.utils.formatters import (
     convert_fields_to_array,
@@ -171,6 +172,8 @@ class CardService:
     ) -> dict:
         if where is not None:
             validate_record_filter(where)
+        if order_by is not None:
+            validate_record_order(order_by)
         variables: dict[str, Any] = {
             "repoId": str(pipe_id),
             "includeFields": include_fields,

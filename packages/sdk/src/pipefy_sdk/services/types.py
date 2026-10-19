@@ -88,20 +88,32 @@ def _is_canonical_uuid(value: object) -> bool:
 
 
 # The API answers a slug or a non-canonical uuid with a generic internal error.
-def validate_record_filter(where: RecordFilter) -> None:
-    if not isinstance(where, dict):
-        return
-    field = where.get("field")
+def _check_field_uuid(field: object) -> None:
     if field is not None and not _is_canonical_uuid(field):
         raise ValueError(
             "field must be the custom field uuid (from get_phase_fields), "
             f"lowercase with hyphens, got {field!r}"
         )
+
+
+def validate_record_filter(where: RecordFilter) -> None:
+    if not isinstance(where, dict):
+        return
+    _check_field_uuid(where.get("field"))
     for key in ("and", "or"):
         children = where.get(key)
+        # GraphQL coerces a single value to a one-item list, so the API runs it.
+        if isinstance(children, dict):
+            children = [children]
         if isinstance(children, list):
             for child in children:
                 validate_record_filter(child)
+
+
+def validate_record_order(order_by: list[RecordOrder]) -> None:
+    for entry in order_by:
+        if isinstance(entry, dict):
+            _check_field_uuid(entry.get("field"))
 
 
 class AiAgentGraphPayload(TypedDict, total=False):
