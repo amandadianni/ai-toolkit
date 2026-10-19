@@ -103,6 +103,8 @@ from pipefy_sdk.services.types import (
     RecordOrder,
     RecordRange,
     copy_card_search,
+    parse_record_filter,
+    parse_record_order,
 )
 from pipefy_sdk.settings import PipefySettings
 
@@ -196,5 +198,7 @@ __all__ = [
     "create_form_model",
     "infer_content_type",
     "skipped_field_ids",
+    "parse_record_filter",
+    "parse_record_order",
     "stream_bytes",
 ]

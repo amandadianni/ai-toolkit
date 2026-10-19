@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Literal
 
-from pydantic import ConfigDict, with_config
+from pydantic import ConfigDict, TypeAdapter, ValidationError, with_config
 from typing_extensions import TypedDict
 
 
@@ -132,6 +132,35 @@ def validate_record_order(order_by: list[RecordOrder]) -> None:
     for entry in _as_list(order_by):
         if isinstance(entry, dict):
             _check_field_uuid(entry.get("field"))
+
+
+_RECORD_FILTER_ADAPTER: TypeAdapter[RecordFilter] = TypeAdapter(RecordFilter)
+_RECORD_ORDER_ADAPTER: TypeAdapter[list[RecordOrder]] = TypeAdapter(list[RecordOrder])
+
+
+def _parse_records_input(adapter: TypeAdapter[Any], raw: object, label: str) -> Any:
+    try:
+        return adapter.validate_python(raw)
+    except ValidationError as exc:
+        clauses = (
+            f"{'.'.join([label, *map(str, err['loc'])])}: {err['msg']}"
+            for err in exc.errors()
+        )
+        raise ValueError("; ".join(clauses)) from None
+
+
+def parse_record_filter(raw: object) -> RecordFilter:
+    """Parse untyped input into a ``RecordFilter``; raises ``ValueError`` naming each bad key or value."""
+    where = _parse_records_input(_RECORD_FILTER_ADAPTER, raw, "where")
+    validate_record_filter(where)
+    return where
+
+
+def parse_record_order(raw: object) -> list[RecordOrder]:
+    """Parse untyped input into a ``RecordOrder`` list; raises ``ValueError`` naming each bad key or value."""
+    order_by = _parse_records_input(_RECORD_ORDER_ADAPTER, raw, "order_by")
+    validate_record_order(order_by)
+    return order_by
 
 
 class AiAgentGraphPayload(TypedDict, total=False):

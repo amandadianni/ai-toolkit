@@ -10,6 +10,8 @@ from pipefy_sdk.services.types import (
     RecordFilter,
     RecordOrder,
     copy_card_search,
+    parse_record_filter,
+    parse_record_order,
     validate_record_filter,
     validate_record_order,
 )
@@ -168,3 +170,43 @@ def test_record_attribute_is_the_api_enum():
         TypeAdapter(RecordFilter).validate_python({"attribute": "created_at"})
     with pytest.raises(ValidationError):
         TypeAdapter(RecordOrder).validate_python({"attribute": "created_at"})
+
+
+@pytest.mark.unit
+def test_parse_record_filter_returns_a_valid_filter():
+    where = {
+        "and": [{"attribute": "TITLE", "ilike": "a"}, {"field": _FIELD_UUID, "eq": 1}]
+    }
+    assert parse_record_filter(where) == where
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("raw", "match"),
+    [
+        ({"attribute": "TITLE", "bogus_op": "x"}, r"where\.bogus_op: Extra inputs"),
+        (
+            {"and": [{"attribute": "created_at"}]},
+            r"where\.and\.0\.attribute: Input should be",
+        ),
+        ({"field": "total_value", "eq": 1}, "lowercase with hyphens"),
+        ([], "where: "),
+    ],
+)
+def test_parse_record_filter_names_the_bad_input(raw, match):
+    with pytest.raises(ValueError, match=match):
+        parse_record_filter(raw)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("raw", "match"),
+    [
+        ([{"attribute": "TITLE", "direction": "asc"}], r"order_by\.0\.direction"),
+        ([{"field": "total_value"}], "lowercase with hyphens"),
+        ({"attribute": "TITLE"}, "order_by: "),
+    ],
+)
+def test_parse_record_order_names_the_bad_input(raw, match):
+    with pytest.raises(ValueError, match=match):
+        parse_record_order(raw)
