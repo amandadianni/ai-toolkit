@@ -1605,6 +1605,25 @@ class TestGetRecordsTool:
         assert f"Cannot access pipe (ID: {pipe_id})" in message
         assert message.isascii()
 
+    @pytest.mark.parametrize("raw", [{"records": None}, {}])
+    async def test_get_records_missing_records_payload_still_returns_an_envelope(
+        self,
+        client_session,
+        mock_pipefy_client,
+        pipe_id,
+        extract_payload,
+        unified_envelope,
+        raw,
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=raw)
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records", {"pipe_id": pipe_id, "first": 10}
+            )
+        payload = extract_payload(result)
+        assert payload["success"] is True
+        assert payload["data"] == raw
+
     async def test_get_records_first_emits_pagination(
         self,
         client_session,

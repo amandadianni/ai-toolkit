@@ -800,7 +800,8 @@ class PipeTools:
                 pagination = None
                 if first is not None:
                     pagination = build_pagination_info(
-                        page_info=raw["records"]["pageInfo"], page_size=first
+                        page_info=(raw.get("records") or {}).get("pageInfo"),
+                        page_size=first,
                     )
                 return tool_success(
                     data=raw, message="Records retrieved.", pagination=pagination
