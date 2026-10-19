@@ -167,7 +167,12 @@ def test_card_records_out_of_range_options_exit_2(
     oauth_env("records-bad-args")
     mock_client = MagicMock()
 
-    for args in (("--first", "51"), ("--where", "[]")):
+    for args in (
+        ("--first", "51"),
+        ("--where", "[]"),
+        ("--phase", ""),
+        ("--phase", "   "),
+    ):
         result = _invoke_card_records(runner, mock_client, "--pipe", "1", *args)
         assert result.exit_code == 2, args
     mock_client.get_records.assert_not_called()

@@ -243,6 +243,7 @@ def card_records(
     if order_by is not None and not isinstance(order_by, list):
         raise typer.BadParameter("--order-by must be a JSON array")
     first_validated = validate_cards_page_size(first, max_size=RECORDS_MAX_PAGE_SIZE)
+    phase_id = validate_optional_resource_id(phase_id, "phase_id")
 
     async def factory(client: PipefyClient):
         return await client.get_records(
