@@ -158,3 +158,13 @@ def test_validate_record_order_accepts_attributes_and_uuids(order_by):
 def test_validate_record_filter_checks_a_single_node_under_and_or(where):
     with pytest.raises(ValueError, match="'total_value'"):
         validate_record_filter(cast(RecordFilter, where))
+
+
+@pytest.mark.unit
+def test_record_attribute_is_the_api_enum():
+    defs = TypeAdapter(RecordFilter).json_schema()["$defs"]
+    assert len(defs["RecordFilter"]["properties"]["attribute"]["enum"]) == 13
+    with pytest.raises(ValidationError):
+        TypeAdapter(RecordFilter).validate_python({"attribute": "created_at"})
+    with pytest.raises(ValidationError):
+        TypeAdapter(RecordOrder).validate_python({"attribute": "created_at"})

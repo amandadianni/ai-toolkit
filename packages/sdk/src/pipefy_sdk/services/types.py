@@ -29,6 +29,22 @@ def copy_card_search(search: CardSearch) -> CardSearch:
 
 RecordScalar = str | int | float | bool | None
 
+RecordAttribute = Literal[
+    "ID",
+    "INDEX",
+    "TITLE",
+    "CREATOR",
+    "CREATOR_EMAIL",
+    "DUE_DATE",
+    "CREATED_AT",
+    "UPDATED_AT",
+    "FINISHED_AT",
+    "CURRENT_PHASE",
+    "LABELS",
+    "ASSIGNEES",
+    "EMAIL_READ",
+]
+
 # Pydantic drops unknown keys by default, so a mistyped "AND" would vanish and the
 # filter would be sent without it; forbid them instead.
 _FORBID_EXTRA = with_config(ConfigDict(extra="forbid"))
@@ -47,7 +63,7 @@ RecordFilter = _FORBID_EXTRA(
         {
             "and": list["RecordFilter"],
             "or": list["RecordFilter"],
-            "attribute": str,
+            "attribute": RecordAttribute,
             "field": str,
             "eq": RecordScalar,
             "neq": RecordScalar,
@@ -73,7 +89,7 @@ RecordFilter = _FORBID_EXTRA(
 
 @_FORBID_EXTRA
 class RecordOrder(TypedDict, total=False):
-    attribute: str
+    attribute: RecordAttribute
     field: str
     direction: Literal["ASC", "DESC"]
 
