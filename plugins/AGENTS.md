@@ -13,20 +13,22 @@ A skill is a directory with a `SKILL.md` entrypoint describing a Pipefy workflow
 ## Directory structure
 
 ```
-skills/
-  <skill-name>/
-    SKILL.md          ← the skill file
-    references/       ← when the workflow has surface-specific instructions
-      mcp.md          ← MCP controls, profiles, response envelopes
-      cli.md          ← shipped commands and flags
-    COMPLIANCE.md     ← required for regulated-domain / blueprint skills
-  AGENTS.md           ← this file
-  README.md           ← catalog index
+plugins/
+  AGENTS.md               ← this file
+  pipefy/
+    skills/
+      <skill-name>/
+        SKILL.md          ← the skill file
+        references/       ← when the workflow has surface-specific instructions
+          mcp.md          ← MCP controls, profiles, response envelopes
+          cli.md          ← shipped commands and flags
+        COMPLIANCE.md     ← required for regulated-domain / blueprint skills
+      README.md           ← catalog index
 ```
 
 The copyable starter lives at [`.github/skill-template/pipefy-skill-template/`](../.github/skill-template/pipefy-skill-template/), outside this catalog.
 
-Each skill folder sits directly under `skills/`, with no domain folder in between. `npx skills add` searches a plugin's `skills/` folder only one level deep; with a deeper layout it falls back to a scan of the whole repository and also installs the skill template.
+Each skill folder sits directly under `plugins/pipefy/skills/`, with no domain folder in between. `npx skills add` searches a plugin's `skills/` folder only one level deep; with a deeper layout it falls back to a scan of the whole repository and also installs the skill template.
 
 Regulated domains (`legal`, `human-resources`, `finance`, `compliance`, or any skill involving decisions about natural persons) require substantive Legal review and a filled `COMPLIANCE.md` (start from [`docs/compliance/COMPLIANCE.template.md`](../docs/compliance/COMPLIANCE.template.md)). See [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 

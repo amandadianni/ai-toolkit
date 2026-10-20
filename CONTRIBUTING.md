@@ -19,7 +19,7 @@ Skills are Markdown-only — no Python, no `uv`, no test infrastructure required
      skills/<domain>/pipefy-<domain>-<action>
    ```
 
-   Fill in [`SKILL.md`](.github/skill-template/pipefy-skill-template/SKILL.md) using the rules in [`skills/AGENTS.md`](skills/AGENTS.md) (and [`.github/skill-template/README.md`](.github/skill-template/README.md)).
+   Fill in [`SKILL.md`](.github/skill-template/pipefy-skill-template/SKILL.md) using the rules in [`plugins/AGENTS.md`](plugins/AGENTS.md) (and [`.github/skill-template/README.md`](.github/skill-template/README.md)).
 4. Run the reference linters locally (optional; CI runs the same checks). Stage new
    skill files first (`git add`); `lint_plugin_packaging.py` reads tracked files via `git ls-files`, so an unstaged skill makes the packaging lint print `passed` while CI will fail after you push.
 

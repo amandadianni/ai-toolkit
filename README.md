@@ -100,7 +100,7 @@ Guides: [`docs/cli/`](docs/cli/README.md) and [`packages/cli/README.md`](package
 
 ## Agent skills
 
-[`skills/`](skills/) holds workflow playbooks (prerequisites, tool tables, steps, success criteria) for any agent that reads Markdown. Catalog: [`skills/README.md`](skills/README.md). Authoring guide: [`skills/AGENTS.md`](skills/AGENTS.md).
+[`skills/`](skills/) holds workflow playbooks (prerequisites, tool tables, steps, success criteria) for any agent that reads Markdown. Catalog: [`skills/README.md`](skills/README.md). Authoring guide: [`plugins/AGENTS.md`](plugins/AGENTS.md).
 
 ---
 
