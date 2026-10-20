@@ -49,8 +49,9 @@ A field is addressed by **slug** for one-off card edits, and by **internal_id** 
 | Field condition `condition.expressions[].field_address` and `actions[].phaseFieldId` | **internal_id** |
 | AI automation prompt / AI agent behavior `%{…}` references | **internal_id** |
 | Data-lookup `output_fields` / `conditions[].field` | **slug** (plus statics like `id`, `title`, `current_phase`) |
+| `get_records` `where.field` / `order_by[].field` | **uuid**, lowercase and hyphenated (a slug or any other form is rejected before the call). `get_phase_fields` returns it; for a start-form field, call it with `phase_id` set to `get_pipe` → `startFormPhaseId` |
 
-`get_phase_fields` / `get_start_form_fields` return both the `id` (slug) and the `internal_id` for each field, so you can pick the form the target surface needs.
+`get_phase_fields` / `get_start_form_fields` return both the `id` (slug) and the `internal_id` for each field, so you can pick the form the target surface needs. Only `get_phase_fields` also returns the field `uuid`.
 
 ### Phase fields (create vs update)
 

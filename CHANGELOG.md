@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **SDK `get_records`**: `PipefyClient.get_records` lists, counts and filters the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. (#791)
+- **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, count and filter the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, parsed with the same rules as MCP (a bad key or value exits 2), and `--first` 1 to 50 with `--after`. (#791)
 
 ### Fixed
 

@@ -215,6 +215,7 @@ class TableTools:
         ) -> dict[str, Any]:
             """List records in a database table using cursor pagination.
 
+            Not for the cards of a pipe; use ``get_records`` to filter and count those.
             With the unified envelope, use top-level ``pagination.has_more``,
             ``pagination.end_cursor``, and ``pagination.page_size``; pass ``after``
             equal to ``end_cursor`` on the next call. Without the unified envelope,
@@ -326,6 +327,7 @@ class TableTools:
         ) -> dict[str, Any]:
             """Search records in a database table where a field matches a value.
 
+            Not for the cards of a pipe; use ``get_records`` to filter and count those.
             Uses Pipefy `findRecords` (returns card-shaped nodes with `fields`).
             Optional ``first`` / ``after`` mirror ``get_table_records``. With the unified
             envelope, read ``pagination.has_more``, ``pagination.end_cursor``, and
