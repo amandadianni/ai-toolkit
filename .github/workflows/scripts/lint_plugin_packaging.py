@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate plugin packaging: Cursor manifest, both published skill lists, and .mcp.json."""
+"""Validate plugin packaging: marketplaces, both plugin manifests, and .mcp.json."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+PLUGIN_DIR = Path("plugins/pipefy")
+MARKETPLACE_SOURCE = "./plugins/pipefy"
 
 PLUGIN_NAME_RE = re.compile(r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$")
 PLACEHOLDER_RE = re.compile(r"\$\{[^}]*\}")
@@ -26,6 +28,11 @@ HOSTED_MCP_TYPE = "http"
 HOSTED_CLIENT_ID = "pipefy-mcp"
 HOSTED_MCP_FILENAME = ".mcp.json"
 CLAUDE_PLUGIN_MANIFEST = Path(".claude-plugin/plugin.json")
+CURSOR_PLUGIN_MANIFEST = Path(".cursor-plugin/plugin.json")
+MARKETPLACE_MANIFESTS = (
+    Path(".claude-plugin/marketplace.json"),
+    Path(".cursor-plugin/marketplace.json"),
+)
 REQUIRED_MANIFEST_MCP_SERVERS = "./.mcp.json"
 FORBIDDEN_ROOT_MCP_JSON = "mcp.json"
 REQUIRED_DISPLAY_NAME = "Pipefy"
@@ -200,6 +207,31 @@ def _lint_marketplace_name(root: Path) -> list[str]:
     ]
 
 
+def _lint_marketplace_source(root: Path) -> list[str]:
+    errors: list[str] = []
+    for manifest in MARKETPLACE_MANIFESTS:
+        path = root / manifest
+        loaded = _load_json(root, path)
+        if isinstance(loaded, str):
+            errors.append(loaded)
+            continue
+        plugins = loaded.get("plugins")
+        entries = plugins if isinstance(plugins, list) else []
+        sources = [
+            entry.get("source")
+            for entry in entries
+            if isinstance(entry, dict)
+            and entry.get("name") == REQUIRED_MARKETPLACE_NAME
+        ]
+        if sources != [MARKETPLACE_SOURCE]:
+            errors.append(
+                f"{manifest} lists plugin {REQUIRED_MARKETPLACE_NAME!r} with "
+                f"source {sources!r}, expected exactly one entry with source "
+                f"{MARKETPLACE_SOURCE!r}"
+            )
+    return errors
+
+
 def _lint_commands_suppressed(
     manifest_rel: Path, manifest: dict[str, Any]
 ) -> list[str]:
@@ -207,7 +239,7 @@ def _lint_commands_suppressed(
     if commands != []:
         return [
             f"{manifest_rel} commands is {commands!r}, expected an empty list "
-            "so Cursor does not discover the repo-root commands/ directory"
+            "so Cursor does not discover the plugin commands/ directory"
         ]
     return []
 
@@ -377,12 +409,14 @@ def _lint_tracked_skill_manifest(
 
 
 def collect_errors(root: Path, skill_md_paths: list[str]) -> list[str]:
-    """Return packaging errors for a plugin rooted at ``root``.
+    """Return packaging errors for the repository at ``root``.
 
-    ``skill_md_paths`` is the ``git ls-files 'skills/**/SKILL.md'`` listing.
+    ``skill_md_paths`` is the ``git ls-files 'skills/**/SKILL.md'`` listing,
+    run inside the plugin folder ``root / PLUGIN_DIR``.
     """
-    manifest_path = root / ".cursor-plugin/plugin.json"
-    mcp_path = root / HOSTED_MCP_FILENAME
+    plugin = root / PLUGIN_DIR
+    manifest_path = plugin / CURSOR_PLUGIN_MANIFEST
+    mcp_path = plugin / HOSTED_MCP_FILENAME
     loaded = _load_json(root, manifest_path)
     if isinstance(loaded, str):
         return [loaded]
@@ -394,16 +428,17 @@ def collect_errors(root: Path, skill_md_paths: list[str]) -> list[str]:
     errors.extend(_lint_forbidden_manifest_keys(manifest_rel, loaded))
     errors.extend(_lint_manifest_mcp_pointer(manifest_rel, loaded))
     errors.extend(_lint_marketplace_name(root))
-    errors.extend(_lint_no_forbidden_root_mcp_json(root))
+    errors.extend(_lint_marketplace_source(root))
+    errors.extend(_lint_no_forbidden_root_mcp_json(plugin))
     errors.extend(_lint_commands_suppressed(manifest_rel, loaded))
-    errors.extend(_lint_logo(root, manifest_rel, loaded))
+    errors.extend(_lint_logo(plugin, manifest_rel, loaded))
     published = skill_dirs_from_ls_files(skill_md_paths)
     errors.extend(_lint_tracked_skill_manifest(root, manifest_path, published))
     errors.extend(
-        _lint_tracked_skill_manifest(root, root / CLAUDE_PLUGIN_MANIFEST, published)
+        _lint_tracked_skill_manifest(root, plugin / CLAUDE_PLUGIN_MANIFEST, published)
     )
     for field, raw in _iter_path_values(loaded):
-        err = _path_field_error(root, manifest_rel, field, raw)
+        err = _path_field_error(plugin, manifest_rel, field, raw)
         if err is not None:
             errors.append(err)
     errors.extend(_lint_mcp(root, mcp_path))
@@ -411,7 +446,7 @@ def collect_errors(root: Path, skill_md_paths: list[str]) -> list[str]:
 
 
 def main() -> int:
-    listing = _tracked_skill_md_paths(REPO_ROOT)
+    listing = _tracked_skill_md_paths(REPO_ROOT / PLUGIN_DIR)
     if isinstance(listing, str):
         print("Plugin packaging FAILED:", file=sys.stderr)
         print(f"  {listing}", file=sys.stderr)

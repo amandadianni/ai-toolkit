@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-_SKILLS = Path(__file__).resolve().parents[1] / "skills"
+_SKILLS = Path(__file__).resolve().parents[1] / "plugins" / "pipefy" / "skills"
 
 
 def test_references_resolve_in_flat_installation(tmp_path):

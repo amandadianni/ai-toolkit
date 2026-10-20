@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-CATALOG = ROOT / "skills"
+CATALOG = ROOT / "plugins" / "pipefy" / "skills"
 
 
 def catalog_files() -> set[str]:

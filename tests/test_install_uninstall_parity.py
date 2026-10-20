@@ -410,7 +410,12 @@ def test_every_receipt_key_the_writer_emits_survives_the_reader(tmp_path):
 # --------------------------------------------------------- the onboarding skill
 
 _ONBOARDING = (
-    Path(__file__).resolve().parents[1] / "skills" / "pipefy-toolkit-setup" / "SKILL.md"
+    Path(__file__).resolve().parents[1]
+    / "plugins"
+    / "pipefy"
+    / "skills"
+    / "pipefy-toolkit-setup"
+    / "SKILL.md"
 )
 
 

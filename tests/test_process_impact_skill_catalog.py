@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_SKILLS = Path(__file__).resolve().parents[1] / "skills"
+_SKILLS = Path(__file__).resolve().parents[1] / "plugins" / "pipefy" / "skills"
 _SKILL_MD = _SKILLS / "pipefy-process-impact" / "SKILL.md"
 _DESIGN_MD = _SKILLS / "pipefy-process-design" / "SKILL.md"
 _INTELLIGENCE_MD = _SKILLS / "pipefy-process-intelligence" / "SKILL.md"
