@@ -1680,8 +1680,8 @@ class PipefyClient:
 
         Returns camelCase ``{"records": {totalCount, pageInfo, edges}}``; ``totalCount`` is the whole result.
         ``field`` (in ``where`` and ``order_by``) takes the lowercase, hyphenated field uuid, else ``ValueError``.
-        ``in`` matches any and ``contains`` all; ``like``/``ilike`` match a plain substring (``%`` is literal).
-        Dates are ISO 8601 with an offset. ``first`` is 1 to 50 (larger is capped); with ``where`` or
+        ``in`` matches any and ``contains`` all; ``like``/``ilike`` match each word, any case (``%`` is literal).
+        Dates take an offset, but a ``date`` field the bare date. ``first`` is 1 to 50 (larger is capped); with ``where`` or
         ``search_term`` pages stop at 10,000. Page by passing ``endCursor`` back as ``after``.
         """
         return await self._card_service.get_records(

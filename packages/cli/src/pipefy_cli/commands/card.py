@@ -194,12 +194,12 @@ def card_records(
     where_json: str | None = typer.Option(
         None,
         "--where",
-        help='JSON filter object, e.g. {"attribute": "ASSIGNEES", "in": ["<user id>"]}; and/or take a list of filters. field must be the custom field uuid (lowercase, hyphenated). like/ilike match a plain substring; % and _ are literal.',
+        help='JSON filter object, e.g. {"attribute": "ASSIGNEES", "in": ["<user id>"]}; and/or take a list of filters. field must be the custom field uuid (lowercase, hyphenated). like/ilike ignore case and match each word of the value as a substring, in any order; % and _ are literal.',
     ),
     search_term: str | None = typer.Option(
         None,
         "--search-term",
-        help='Match title and subtitle fields, not the card id; for an id use --where \'{"attribute": "ID", "eq": "<id>"}\'.',
+        help='Match title and subtitle fields; for a card id use --where \'{"attribute": "ID", "eq": "<id>"}\'.',
     ),
     phase_id: str | None = typer.Option(
         None, "--phase", help="Only cards currently in this phase."
@@ -234,8 +234,10 @@ def card_records(
     """List, count and filter the cards of a pipe (records query).
 
     totalCount counts the whole result. On ASSIGNEES and LABELS, in matches any
-    and contains matches all; like and ilike match a plain substring, with no
-    wildcards; dates are ISO 8601 with an offset. With --where or
+    and contains matches all; like and ilike ignore case and match each word of
+    the value, in any order, with no wildcards; dates are ISO 8601, with an offset
+    on date-time attributes (CREATED_AT, FINISHED_AT) and as a bare date
+    (2026-07-03) on a date field. With --where or
     --search-term, paging stops at 10,000 cards. Page with --after set to
     pageInfo.endCursor until hasNextPage is false.
     """

@@ -752,12 +752,16 @@ class PipeTools:
             ``pageInfo`` and ``edges`` in camelCase. ``where`` is a filter node
             (``attribute`` or ``field`` plus one operator) or ``and``/``or`` lists of
             nodes. ``field`` (in ``where`` and ``order_by``) must be the custom field
-            uuid from ``get_phase_fields``; for a start-form field, pass ``get_pipe``'s
-            ``startFormPhaseId`` as its ``phase_id``. CREATOR takes a user id and
-            CREATOR_EMAIL an email. On ASSIGNEES and LABELS, ``in`` matches any and
-            ``contains`` matches all. ``like`` and ``ilike`` match a plain substring
-            (``ilike`` ignores case); ``%`` and ``_`` are literal characters, not
-            wildcards. Dates are ISO 8601 with an offset. Pages hold at most 50 cards; with
+            uuid from ``get_phase_fields``; for a start-form field, call
+            ``get_phase_fields`` with ``phase_id`` set to ``get_pipe``'s
+            ``startFormPhaseId``. CREATOR takes a user id and CREATOR_EMAIL an email.
+            On ASSIGNEES and LABELS, ``in`` matches any and ``contains`` matches all.
+            ``like`` and ``ilike`` both ignore case and match each word of the value as
+            a substring, in any order; ``%`` and ``_`` are literal characters, not
+            wildcards. Dates are ISO 8601: give date-time attributes such as
+            ``CREATED_AT`` and ``FINISHED_AT`` an offset, but give a ``date`` custom
+            field the bare date (``2026-07-03``), because a non-UTC offset makes ``eq``
+            return 0 and shifts a ``between`` window. Pages hold at most 50 cards; with
             ``where`` or ``search_term`` paging stops at 10,000 cards.
 
             To read every page, pass ``pageInfo.endCursor`` back as ``after`` until
@@ -766,8 +770,8 @@ class PipeTools:
             Args:
                 pipe_id: The ID of the pipe.
                 where: Filter tree, e.g. ``{"attribute": "ASSIGNEES", "in": ["<user id>"]}``.
-                search_term: Matches title and subtitle fields, not the card id; to
-                    find a card by id, use ``where={"attribute": "ID", "eq": "<id>"}``.
+                search_term: Matches title and subtitle fields; to find a card by id,
+                    use ``where={"attribute": "ID", "eq": "<id>"}``.
                 phase_id: Only cards currently in this phase.
                 order_by: List of ``{attribute or field, direction}`` (ASC or DESC); ``field`` is the field uuid.
                 include_fields: If True, include each card's custom fields.
