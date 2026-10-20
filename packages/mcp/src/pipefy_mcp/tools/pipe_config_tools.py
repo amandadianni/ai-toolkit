@@ -21,6 +21,7 @@ from pipefy_mcp.tools.graphql_error_helpers import (
     extract_error_strings,
     extract_graphql_correlation_id,
     extract_graphql_error_codes,
+    timeout_message_or,
     with_debug_suffix,
 )
 from pipefy_mcp.tools.pagination_helpers import (
@@ -268,10 +269,13 @@ class PipeConfigTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_pipe_error_to_message(
-                    pipe_id=pipe_id_str,
-                    pipe_name=pipe_name,
-                    codes=codes,
+                base = timeout_message_or(
+                    exc,
+                    map_delete_pipe_error_to_message(
+                        pipe_id=pipe_id_str,
+                        pipe_name=pipe_name,
+                        codes=codes,
+                    ),
                 )
                 return build_delete_pipe_error_payload(
                     message=with_debug_suffix(
@@ -308,10 +312,13 @@ class PipeConfigTools:
             except Exception as exc:  # noqa: BLE001
                 codes = extract_graphql_error_codes(exc)
                 correlation_id = extract_graphql_correlation_id(exc)
-                base = map_delete_pipe_error_to_message(
-                    pipe_id=pipe_id_str,
-                    pipe_name=pipe_name,
-                    codes=codes,
+                base = timeout_message_or(
+                    exc,
+                    map_delete_pipe_error_to_message(
+                        pipe_id=pipe_id_str,
+                        pipe_name=pipe_name,
+                        codes=codes,
+                    ),
                 )
                 return build_delete_pipe_error_payload(
                     message=with_debug_suffix(

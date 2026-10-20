@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.4-beta.2] - 2026-10-20
+
+### Changed
+
+- **Claude Code and Cursor plugin, folder layout**: the plugin moved from the repository root to `plugins/pipefy/`, and both marketplaces point at it with `"source": "./plugins/pipefy"`. With the plugin at the root, every tracked file counted as a plugin file, and the Claude plugin directory timed out ("The directory service didn't answer in time") while it validated the repository. The plugin folder now holds 59 files, and `lint_plugin_packaging.py` keeps it at 200 files or fewer. Existing installs move to the new layout when they update to the next version. Opening the repository no longer registers the hosted MCP server at project scope, because `.mcp.json` now lives in the plugin folder.
+- **Skills, folder layout**: each skill moved from `skills/<domain>/<skill>/` to `plugins/pipefy/skills/<skill>/`. `npx skills add pipefy/ai-toolkit` now installs exactly the 18 skills; with the domain folders, it also installed the skill template from `.github/skill-template/`. Installed skills keep working, and `npx skills update` finds them at the new path. The skill catalog is now the plugin README, `plugins/pipefy/README.md`, and the authoring guide is `plugins/AGENTS.md`.
+
+### Added
+
+- **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, count and filter the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, parsed with the same rules as MCP (a bad key or value exits 2), and `--first` 1 to 50 with `--after`. (#791)
+
+### Fixed
+
+- **README, Claude Code plugin install**: the quick-start row now gives the one-step install, `/plugin install pipefy --marketplace pipefy/ai-toolkit`, which adds the marketplace and installs the plugin (Claude Code 2.1.275 or later). `claude plugin validate` reported that the README had no line installing the plugin from a marketplace. `docs/install.md` keeps the two-step form for older versions.
+- **SDK GraphQL timeout**: a GraphQL call from the SDK, the MCP server, or the CLI that ran longer than 10 s stopped with a bare `TimeoutError`, the `gql` client's default execute timeout, although the SDK sets a 30 s request timeout. A call now waits up to 30 s, so a call that the API answers in 10 to 30 s returns its result instead of failing. A call past 30 s still fails, now with the descriptive error from #781. (#778)
+- **SDK GraphQL timeout message**: a GraphQL call that exceeded the 30 s request timeout raised a bare `TimeoutError` with an empty message, so neither a caller nor the MCP tool reply could tell the call had timed out or after how long — the MCP layer fell back to a generic "request failed" message. The SDK now raises `PipefyRequestTimeoutError`, whose message names the limit and warns that a timed-out write can still have been applied, so the caller should read the state back before retrying; it subclasses both `PipefyError` and `TimeoutError`, so existing `except TimeoutError` handlers keep working. The MCP comment and delete tools (`add_card_comment`, `update_comment`, `delete_comment`, `delete_card`, `delete_pipe`, `delete_table`) now surface this message instead of their generic "try again" reply, which had invited a retry of a write the API may already have committed. (#781)
+- **SDK GraphQL error classification**: a GraphQL error with code `FEATURE_BLOCKED`, which the API returns when a feature is blocked for the organization, is now classified as `feature_not_enabled` like the other feature codes. It used to fall through to `runtime`, or `not_found` when the message mentioned not found. The change shows in `error.details.kind` on the MCP LLM provider and knowledge base tools, and in `problem.kind` from the SDK access probes, `pipefy ai-provider validate-access`, `pipefy kb validate-access` and the CLI write gates that use them. `message` and `code` are unchanged.
+
 ## [0.5.4-beta.1] - 2026-10-09
 
 ### Changed

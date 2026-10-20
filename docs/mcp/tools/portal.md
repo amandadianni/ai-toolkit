@@ -239,7 +239,7 @@ Nested GraphQL/internal_api `success: false` → MCP top-level `{ success: false
 When changing portal SDK/MCP/CLI behavior:
 
 1. **TDD loop:** SDK unit tests → MCP tool tests → CLI tests; `uv run pytest -m "not integration" -k portal`; update [`docs/parity.md`](../../parity.md) in the same PR.
-2. **Live schema:** Portal mutations may live on Interfaces or internal_api (see [Endpoints](#endpoints) above), not the main GraphQL URL. Before adding SDK queries, verify shapes with [`skills/introspection/pipefy-introspection/SKILL.md`](../../../skills/introspection/pipefy-introspection/SKILL.md) (`introspect_mutation` / `pipefy introspect mutation`) or `gql-cli` against the derived URLs (set `PIPEFY_BASE_URL` and auth per [`docs/config.md`](../../config.md)):
+2. **Live schema:** Portal mutations may live on Interfaces or internal_api (see [Endpoints](#endpoints) above), not the main GraphQL URL. Before adding SDK queries, verify shapes with [`plugins/pipefy/skills/pipefy-introspection/SKILL.md`](../../../plugins/pipefy/skills/pipefy-introspection/SKILL.md) (`introspect_mutation` / `pipefy introspect mutation`) or `gql-cli` against the derived URLs (set `PIPEFY_BASE_URL` and auth per [`docs/config.md`](../../config.md)):
 
    ```bash
    uv run gql-cli --headers "Authorization: Bearer $PIPEFY_ACCESS_TOKEN" \

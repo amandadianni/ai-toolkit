@@ -11,6 +11,31 @@ class PipefyAPIError(PipefyError):
     """Raised when the Pipefy GraphQL API returns an error payload."""
 
 
+class PipefyRequestTimeoutError(PipefyError, TimeoutError):
+    """Raised when a GraphQL request exceeds the SDK's request timeout.
+
+    Both gql's per-execute timer and the httpx transport are bounded by
+    ``GraphQLEndpoint.GRAPHQL_REQUEST_TIMEOUT_SECONDS``. When that bound fires gql
+    raises a bare :class:`TimeoutError` with an empty message, so a caller — and
+    the MCP error layer that reads ``str(exc)`` — cannot tell a timeout from any
+    other blank error, nor how long the call waited. The executor translates that
+    bare timeout into this error, whose message names the limit and its value.
+
+    It subclasses :class:`TimeoutError` as well as :class:`PipefyError` so the two
+    contracts hold at once: existing ``except TimeoutError`` handlers keep catching
+    a timed-out request, and it is also catchable as the SDK root like every other
+    SDK error. ``timeout_seconds`` carries the bound that fired.
+    """
+
+    def __init__(self, timeout_seconds: float) -> None:
+        self.timeout_seconds = timeout_seconds
+        super().__init__(
+            f"Pipefy GraphQL request timed out after {timeout_seconds} s "
+            f"(GraphQLEndpoint.GRAPHQL_REQUEST_TIMEOUT_SECONDS). "
+            "A mutation can still have been applied. Read the state back before you retry."
+        )
+
+
 class AiAgentConfigureError(PipefyError):
     """Raised when ``create_ai_agent`` created the agent but its configure update failed.
 

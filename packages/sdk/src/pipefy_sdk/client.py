@@ -115,6 +115,8 @@ from pipefy_sdk.services.types import (
     MePayload,
     ProviderAccessProbeResult,
     ProviderDependenciesResult,
+    RecordFilter,
+    RecordOrder,
     ToggleAgentStatusResult,
 )
 from pipefy_sdk.services.user_service import UserService
@@ -1660,6 +1662,37 @@ class PipefyClient:
         """
         return await self._card_service.get_cards(
             pipe_id, search, include_fields=include_fields, first=first, after=after
+        )
+
+    async def get_records(
+        self,
+        pipe_id: str | int,
+        where: RecordFilter | None = None,
+        search_term: str | None = None,
+        phase_id: str | int | None = None,
+        order_by: list[RecordOrder] | None = None,
+        include_fields: bool = False,
+        *,
+        first: int | None = None,
+        after: str | None = None,
+    ) -> dict:
+        """List, count and filter the cards of a pipe (the ``records`` GraphQL query).
+
+        Returns camelCase ``{"records": {totalCount, pageInfo, edges}}``; ``totalCount`` is the whole result.
+        ``field`` (in ``where`` and ``order_by``) takes the lowercase, hyphenated field uuid, else ``ValueError``.
+        ``in`` matches any and ``contains`` all; ``like``/``ilike`` match each word, any case (``%`` is literal).
+        Dates take an offset, but a ``date`` field the bare date. ``first`` is 1 to 50 (larger is capped); with ``where`` or
+        ``search_term`` pages stop at 10,000. Page by passing ``endCursor`` back as ``after``.
+        """
+        return await self._card_service.get_records(
+            pipe_id,
+            where,
+            search_term,
+            phase_id,
+            order_by,
+            include_fields,
+            first=first,
+            after=after,
         )
 
     async def find_cards(

@@ -9,7 +9,12 @@ import pytest
 from _mcp_compat import (
     create_connected_server_and_client_session as create_client_session,
 )
-from pipefy_sdk import FIELD_TYPE_IDS, PipefyClient, PipefyGraphQLError
+from pipefy_sdk import (
+    FIELD_TYPE_IDS,
+    PipefyClient,
+    PipefyGraphQLError,
+    PipefyRequestTimeoutError,
+)
 from pipefy_sdk.transition_hints import TRANSITION_RULES_HINT
 
 from pipefy_mcp.core.tool_error_envelope import tool_error, tool_error_message
@@ -295,6 +300,32 @@ async def test_delete_pipe_maps_not_found_on_get_pipe(
     payload = extract_payload(result)
     assert payload["success"] is False
     assert "not found" in tool_error_message(payload).lower()
+
+
+@pytest.mark.anyio
+async def test_delete_pipe_surfaces_request_timeout(
+    pipe_config_session, mock_pipe_config_client
+):
+    """A timed-out delete_pipe names the timeout, not the generic retry message.
+
+    A timeout carries no GraphQL error code, so before the fix it folded into the
+    "Please try again" reply, which invites a retry of a delete the API may already
+    have committed.
+    """
+    mock_pipe_config_client.get_pipe.return_value = {
+        "pipe": {"id": "9", "name": "P1", "phases": []},
+    }
+    mock_pipe_config_client.delete_pipe.side_effect = PipefyRequestTimeoutError(30)
+
+    async with pipe_config_session as session:
+        payload = await confirm_after_preview(session, "delete_pipe", {"pipe_id": 9})
+
+    mock_pipe_config_client.delete_pipe.assert_awaited_once_with("9")
+    message = tool_error_message(payload)
+    assert payload["success"] is False
+    assert "timed out" in message.lower()
+    assert "30" in message
+    assert "try again" not in message.lower()
 
 
 @pytest.mark.anyio

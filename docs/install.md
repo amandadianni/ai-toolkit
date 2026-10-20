@@ -26,7 +26,7 @@ Pick a path based on your client and whether you need the full tool set. The roo
 > curl -LsSf https://raw.githubusercontent.com/pipefy/ai-toolkit/main/uninstall.sh | sh -s -- --scan
 > ```
 >
-> That reports every registration and how each one is reached. It removes nothing, edits nothing, and exits `0` when it finds nothing, `1` when findings remain, `2` when a source could not be inspected. A registration is matched on what it **runs** (the `pipefy-mcp-server` command, a known runner invoking it, or the host `mcp.pipefy.com`), so one registered under any other name is still found. First-time setup checklist to hand your agent: [`skills/onboarding/pipefy-toolkit-setup/SKILL.md`](../skills/onboarding/pipefy-toolkit-setup/SKILL.md). Removing a path, or moving between them: [Uninstalling](#uninstalling-and-switching-between-paths) and [`docs/uninstall.md`](uninstall.md).
+> That reports every registration and how each one is reached. It removes nothing, edits nothing, and exits `0` when it finds nothing, `1` when findings remain, `2` when a source could not be inspected. A registration is matched on what it **runs** (the `pipefy-mcp-server` command, a known runner invoking it, or the host `mcp.pipefy.com`), so one registered under any other name is still found. First-time setup checklist to hand your agent: [`plugins/pipefy/skills/pipefy-toolkit-setup/SKILL.md`](../plugins/pipefy/skills/pipefy-toolkit-setup/SKILL.md). Removing a path, or moving between them: [Uninstalling](#uninstalling-and-switching-between-paths) and [`docs/uninstall.md`](uninstall.md).
 
 > **Too many tools for your client?** The local paths can expose a subset instead of the whole catalog: by subject domain, by persona profile, or as four catalog meta-tools the agent searches on demand. See [Choosing a tool surface](#choosing-a-tool-surface). That selection (`PIPEFY_MCP_TOOLSETS`) applies to the local stdio path only. Any client on the hosted URL receives the remote-safe surface.
 
@@ -59,6 +59,8 @@ Complete the browser login when prompted (`claude mcp login pipefy` if the clien
 /pipefy:install
 /pipefy:pipefy-login
 ```
+
+On Claude Code 2.1.275 or later, the first two lines are one command: `/plugin install pipefy --marketplace pipefy/ai-toolkit` adds the marketplace, after asking you to confirm, and installs the plugin.
 
 Type the slash commands **in order** (the model cannot invoke `/plugin …` for you). `/plugin install pipefy` (`/plugin install pipefy@pipefy` is the same install, written with the marketplace name) registers the hosted MCP server plus the `/pipefy:install` and `/pipefy:pipefy-login` commands; `/pipefy:install` runs `uv tool install --force pipefy-cli` from PyPI once to put `pipefy` on PATH (idempotent); `/pipefy:pipefy-login` runs the OAuth browser flow for the CLI. MCP sign-in for the hosted server is the in-client OAuth prompt. Hand-wired local stdio, the macOS `errSecInvalidOwnerEdit` keychain note, and the contributor local-clone alternative: [`packages/mcp/README.md`](../packages/mcp/README.md). To run a local branch as the plugin, see [Test the plugin from a local checkout](#test-the-claude-code-plugin-from-a-local-checkout).
 
@@ -98,7 +100,7 @@ npx skills add pipefy/ai-toolkit                           # all skills
 npx skills add pipefy/ai-toolkit --skill pipefy-pipes-and-cards
 ```
 
-Catalog and authoring guide: [`skills/README.md`](../skills/README.md).
+Catalog: [`plugins/pipefy/README.md`](../plugins/pipefy/README.md). Authoring guide: [`plugins/AGENTS.md`](../plugins/AGENTS.md).
 
 ## 6. Cursor Marketplace plugin
 
@@ -108,14 +110,13 @@ Install **Pipefy** from the Cursor Marketplace (the listing is a reviewed snapsh
 
 This path and any user-config Pipefy MCP entry (including one written by `install.sh --client cursor`) both occupy Cursor's MCP list. They are mutually exclusive, the same rule as mixing hosted HTTP with local stdio. The registration key is free text: delete the matching key from `~/.cursor/mcp.json` (Windows: `%USERPROFILE%\.cursor\mcp.json`) and keep the Marketplace plugin. `./uninstall.sh --scan` prints the name it found; the switch is in [`docs/uninstall.md`](uninstall.md#to-the-cursor-marketplace-plugin).
 
-To load this checkout as a local plugin (contributors): Cursor rejects a symlink whose target is outside `~/.cursor/plugins/local` (it logs `loadUserLocalPlugin pipefy rejected`). Copy the plugin files into that directory as a real folder, then fully restart Cursor. If `~/.cursor/plugins/local/pipefy` is already a symlink to this checkout, `rm` the link first; that does not delete the repo. Copying `commands/` is optional: the Cursor manifest declares `"commands": []`, so neither a local copy nor a Marketplace tarball of this repo surfaces `/install` or `/pipefy-login`. Include it if you want the copy to match what ships.
+To load this checkout as a local plugin (contributors): Cursor rejects a symlink whose target is outside `~/.cursor/plugins/local` (it logs `loadUserLocalPlugin pipefy rejected`). Copy the plugin folder `plugins/pipefy/` into that directory as a real folder, then fully restart Cursor. If `~/.cursor/plugins/local/pipefy` is already a symlink to this checkout, `rm` the link first; that does not delete the repo. The copy includes `commands/`, but the Cursor manifest declares `"commands": []`, so neither a local copy nor the Marketplace listing surfaces `/install` or `/pipefy-login`.
 
 ```sh
 dest="$HOME/.cursor/plugins/local/pipefy"
 if [ -L "$dest" ]; then rm "$dest"; fi
-mkdir -p "$dest/assets"
-cp -R .cursor-plugin skills LICENSE NOTICE README.md .mcp.json "$dest/"
-cp assets/logo.svg "$dest/assets/"
+mkdir -p "$dest"
+cp -R plugins/pipefy/. "$dest/"
 ```
 
 Remove a copy with `rm -rf ~/.cursor/plugins/local/pipefy`. Remove only a leftover symlink with `rm ~/.cursor/plugins/local/pipefy`.
