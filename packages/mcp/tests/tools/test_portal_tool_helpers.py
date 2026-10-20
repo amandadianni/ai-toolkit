@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 from pipefy_sdk import PipefyGraphQLError
-from pipefy_sdk.exceptions import PortalPermissionError
+from pipefy_sdk.exceptions import (
+    HtmlValidationError,
+    HtmlViolation,
+    PortalPermissionError,
+)
 from pipefy_sdk.models.portal import DeletePortalElementInput
 
 from pipefy_mcp.tools.portal_tool_helpers import (
@@ -202,3 +206,52 @@ def test_delete_confirmation_binds_the_exact_layout_rows() -> None:
         plan.resource_identity for plan in (no_layout, empty, ordered, reordered)
     ]
     assert len({tuple(sorted(identity.items())) for identity in identities}) == 4
+
+
+@pytest.mark.unit
+def test_map_portal_error_lists_every_html_violation() -> None:
+    """The agent gets each violation's code, message, selector and attribute."""
+    exc = HtmlValidationError(
+        (
+            HtmlViolation(
+                code="SCRIPT_FORBIDDEN",
+                message="Scripts are not allowed on this page.",
+                selector="script",
+                attribute=None,
+            ),
+            HtmlViolation(
+                code="EVENT_HANDLER_FORBIDDEN",
+                message="Event handler attributes are not allowed.",
+                selector="button",
+                attribute="onclick",
+            ),
+        )
+    )
+
+    assert map_portal_error_to_message(exc) == (
+        "The HTML was not saved: it has 2 violations. "
+        "Fix every one, then write the whole document again.\n"
+        "- SCRIPT_FORBIDDEN at script: Scripts are not allowed on this page.\n"
+        "- EVENT_HANDLER_FORBIDDEN at button[onclick]: "
+        "Event handler attributes are not allowed."
+    )
+
+
+@pytest.mark.unit
+def test_map_portal_error_html_violation_without_selector_names_the_document() -> None:
+    exc = HtmlValidationError(
+        (
+            HtmlViolation(
+                code="CONTENT_TOO_LARGE",
+                message="The page content is larger than the 200 KB limit.",
+                selector=None,
+                attribute=None,
+            ),
+        )
+    )
+
+    assert map_portal_error_to_message(exc) == (
+        "The HTML was not saved: it has 1 violation. "
+        "Fix every one, then write the whole document again.\n"
+        "- CONTENT_TOO_LARGE: The page content is larger than the 200 KB limit."
+    )
