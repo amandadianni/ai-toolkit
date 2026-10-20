@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.4-beta.2] - 2026-10-20
+
 ### Changed
 
 - **Claude Code and Cursor plugin, folder layout**: the plugin moved from the repository root to `plugins/pipefy/`, and both marketplaces point at it with `"source": "./plugins/pipefy"`. With the plugin at the root, every tracked file counted as a plugin file, and the Claude plugin directory timed out ("The directory service didn't answer in time") while it validated the repository. The plugin folder now holds 59 files, and `lint_plugin_packaging.py` keeps it at 200 files or fewer. Existing installs move to the new layout when they update to the next version. Opening the repository no longer registers the hosted MCP server at project scope, because `.mcp.json` now lives in the plugin folder.
