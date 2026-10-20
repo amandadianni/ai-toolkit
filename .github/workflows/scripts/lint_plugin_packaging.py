@@ -399,6 +399,18 @@ def _lint_mcp(root: Path, mcp_path: Path) -> list[str]:
     return errors
 
 
+def _lint_default_skill_discovery(root: Path, manifest_path: Path) -> list[str]:
+    loaded = _load_json(root, manifest_path)
+    if isinstance(loaded, str):
+        return [loaded]
+    if "skills" not in loaded:
+        return []
+    return [
+        f"{_rel(root, manifest_path)} declares skills; expected no skills field, "
+        "so Claude Code loads every folder under skills/"
+    ]
+
+
 def _lint_tracked_skill_manifest(
     root: Path, manifest_path: Path, tree: set[str]
 ) -> list[str]:
@@ -434,9 +446,7 @@ def collect_errors(root: Path, skill_md_paths: list[str]) -> list[str]:
     errors.extend(_lint_logo(plugin, manifest_rel, loaded))
     published = skill_dirs_from_ls_files(skill_md_paths)
     errors.extend(_lint_tracked_skill_manifest(root, manifest_path, published))
-    errors.extend(
-        _lint_tracked_skill_manifest(root, plugin / CLAUDE_PLUGIN_MANIFEST, published)
-    )
+    errors.extend(_lint_default_skill_discovery(root, plugin / CLAUDE_PLUGIN_MANIFEST))
     for field, raw in _iter_path_values(loaded):
         err = _path_field_error(plugin, manifest_rel, field, raw)
         if err is not None:

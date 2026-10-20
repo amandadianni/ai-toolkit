@@ -92,15 +92,10 @@ def _write_plugin(
     )
     claude = root / ".claude-plugin"
     claude.mkdir()
-    (claude / "plugin.json").write_text(
-        json.dumps(
-            {
-                "name": "pipefy",
-                "skills": written_skills if claude_skills is None else claude_skills,
-            }
-        ),
-        encoding="utf-8",
-    )
+    claude_body = {"name": "pipefy"}
+    if claude_skills is not None:
+        claude_body["skills"] = claude_skills
+    (claude / "plugin.json").write_text(json.dumps(claude_body), encoding="utf-8")
     _write_marketplace(repo, ".claude-plugin")
     _write_marketplace(repo, ".cursor-plugin")
     (root / ".mcp.json").write_text(
@@ -121,49 +116,30 @@ def test_unlisted_skill_is_named(tmp_path):
     extra_dir.mkdir(parents=True)
     (extra_dir / "SKILL.md").write_text("# extra\n", encoding="utf-8")
     errors = _lint.collect_errors(tmp_path, [_SKILL_MD, f"{extra}/SKILL.md"])
-    for manifest in (".cursor-plugin/plugin.json", ".claude-plugin/plugin.json"):
-        assert any(
-            manifest in err and extra in err and "missing" in err for err in errors
-        ), errors
+    assert any(
+        ".cursor-plugin/plugin.json" in err and extra in err and "missing" in err
+        for err in errors
+    ), errors
+    assert not any(".claude-plugin/plugin.json" in err for err in errors), errors
 
 
 def test_stale_manifest_entry_is_named(tmp_path):
     stale = "skills/fake-skill"
     _write_plugin(tmp_path, skills=[f"./{_SKILL}", f"./{stale}"])
     errors = _lint.collect_errors(tmp_path, [_SKILL_MD])
-    for manifest in (".cursor-plugin/plugin.json", ".claude-plugin/plugin.json"):
-        assert any(
-            manifest in err and stale in err and "which is not a tracked skill" in err
-            for err in errors
-        ), errors
-
-
-def test_claude_manifest_missing_skill_names_that_file(tmp_path):
-    extra = "skills/pipefy-observability"
-    _write_plugin(
-        tmp_path,
-        skills=[f"./{_SKILL}", f"./{extra}"],
-        claude_skills=[f"./{_SKILL}"],
-    )
-    extra_dir = tmp_path / _PLUGIN / extra
-    extra_dir.mkdir(parents=True)
-    (extra_dir / "SKILL.md").write_text("# extra\n", encoding="utf-8")
-    errors = _lint.collect_errors(tmp_path, [_SKILL_MD, f"{extra}/SKILL.md"])
     assert any(
-        ".claude-plugin/plugin.json" in err and extra in err and "missing" in err
-        for err in errors
-    ), errors
-    assert not any(".cursor-plugin/plugin.json" in err for err in errors), errors
-
-
-def test_claude_manifest_stale_skill_names_that_file(tmp_path):
-    stale = "skills/fake-skill"
-    _write_plugin(tmp_path, claude_skills=[f"./{_SKILL}", f"./{stale}"])
-    errors = _lint.collect_errors(tmp_path, [_SKILL_MD])
-    assert any(
-        ".claude-plugin/plugin.json" in err
+        ".cursor-plugin/plugin.json" in err
         and stale in err
         and "which is not a tracked skill" in err
+        for err in errors
+    ), errors
+
+
+def test_claude_manifest_skill_list_is_rejected(tmp_path):
+    _write_plugin(tmp_path, claude_skills=[f"./{_SKILL}"])
+    errors = _lint.collect_errors(tmp_path, [_SKILL_MD])
+    assert any(
+        ".claude-plugin/plugin.json" in err and "declares skills" in err
         for err in errors
     ), errors
     assert not any(".cursor-plugin/plugin.json" in err for err in errors), errors

@@ -12,25 +12,5 @@
   "documentationUrl": "https://github.com/pipefy/ai-toolkit/blob/main/docs/install.md",
   "supportUrl": "https://github.com/pipefy/ai-toolkit/issues",
   "privacyPolicyUrl": "https://www.pipefy.com/privacy-policy/",
-  "termsOfServiceUrl": "https://www.pipefy.com/legal-portal/terms-and-conditions/",
-  "skills": [
-    "./skills/pipefy-ai-agents",
-    "./skills/pipefy-api-fallback",
-    "./skills/pipefy-attachments",
-    "./skills/pipefy-automations",
-    "./skills/pipefy-building",
-    "./skills/pipefy-database-tables",
-    "./skills/pipefy-introspection",
-    "./skills/pipefy-ipaas",
-    "./skills/pipefy-members-email-webhooks",
-    "./skills/pipefy-observability",
-    "./skills/pipefy-pipes-and-cards",
-    "./skills/pipefy-portal-setup",
-    "./skills/pipefy-process-design",
-    "./skills/pipefy-process-impact",
-    "./skills/pipefy-process-intelligence",
-    "./skills/pipefy-relations",
-    "./skills/pipefy-reports",
-    "./skills/pipefy-toolkit-setup"
-  ]
+  "termsOfServiceUrl": "https://www.pipefy.com/legal-portal/terms-and-conditions/"
 }
