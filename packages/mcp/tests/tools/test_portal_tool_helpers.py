@@ -215,13 +215,13 @@ def test_map_portal_error_lists_every_html_violation() -> None:
         (
             HtmlViolation(
                 code="SCRIPT_FORBIDDEN",
-                message="Scripts are not allowed on this page.",
+                message="Remove the script tag.",
                 selector="script",
                 attribute=None,
             ),
             HtmlViolation(
                 code="EVENT_HANDLER_FORBIDDEN",
-                message="Event handler attributes are not allowed.",
+                message="Remove the onclick handler.",
                 selector="button",
                 attribute="onclick",
             ),
@@ -231,19 +231,18 @@ def test_map_portal_error_lists_every_html_violation() -> None:
     assert map_portal_error_to_message(exc) == (
         "The HTML was not saved: it has 2 violations. "
         "Fix every one, then write the whole document again.\n"
-        "- SCRIPT_FORBIDDEN at script: Scripts are not allowed on this page.\n"
-        "- EVENT_HANDLER_FORBIDDEN at button[onclick]: "
-        "Event handler attributes are not allowed."
+        "- SCRIPT_FORBIDDEN at script: Remove the script tag.\n"
+        "- EVENT_HANDLER_FORBIDDEN at button[onclick]: Remove the onclick handler."
     )
 
 
 @pytest.mark.unit
-def test_map_portal_error_html_violation_without_selector_names_the_document() -> None:
+def test_map_portal_error_html_violation_without_selector_omits_the_location() -> None:
     exc = HtmlValidationError(
         (
             HtmlViolation(
                 code="CONTENT_TOO_LARGE",
-                message="The page content is larger than the 200 KB limit.",
+                message="The document is too large.",
                 selector=None,
                 attribute=None,
             ),
@@ -253,5 +252,23 @@ def test_map_portal_error_html_violation_without_selector_names_the_document() -
     assert map_portal_error_to_message(exc) == (
         "The HTML was not saved: it has 1 violation. "
         "Fix every one, then write the whole document again.\n"
-        "- CONTENT_TOO_LARGE: The page content is larger than the 200 KB limit."
+        "- CONTENT_TOO_LARGE: The document is too large."
+    )
+
+
+@pytest.mark.unit
+def test_map_portal_error_html_violation_with_only_an_attribute_names_it() -> None:
+    exc = HtmlValidationError(
+        (
+            HtmlViolation(
+                code="EVENT_HANDLER_FORBIDDEN",
+                message="Remove the onclick handler.",
+                selector=None,
+                attribute="onclick",
+            ),
+        )
+    )
+
+    assert map_portal_error_to_message(exc).endswith(
+        "\n- EVENT_HANDLER_FORBIDDEN at [onclick]: Remove the onclick handler."
     )

@@ -48,8 +48,8 @@ def _html_violation_line(violation: HtmlViolation) -> str:
     location = violation.selector or ""
     if violation.attribute:
         location += f"[{violation.attribute}]"
-    where = f" at {location}" if location else ""
-    return f"- {violation.code}{where}: {violation.message}"
+    location_clause = f" at {location}" if location else ""
+    return f"- {violation.code}{location_clause}: {violation.message}"
 
 
 def _html_validation_message(exc: HtmlValidationError) -> str:
