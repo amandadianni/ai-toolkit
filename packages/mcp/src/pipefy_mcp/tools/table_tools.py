@@ -326,6 +326,7 @@ class TableTools:
         ) -> dict[str, Any]:
             """Search records in a database table where a field matches a value.
 
+            Not for the cards of a pipe; use ``get_records`` to filter and count those.
             Uses Pipefy `findRecords` (returns card-shaped nodes with `fields`).
             Optional ``first`` / ``after`` mirror ``get_table_records``. With the unified
             envelope, read ``pagination.has_more``, ``pagination.end_cursor``, and

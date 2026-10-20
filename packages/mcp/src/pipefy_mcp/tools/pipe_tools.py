@@ -748,6 +748,9 @@ class PipeTools:
         ) -> dict:
             """List, count and filter the cards of a pipe on the server (the ``records`` query).
 
+            Not for database-table records; use ``find_records`` / ``get_table_records``.
+            For a count, pass ``first=1`` and read ``records.totalCount``.
+
             Returns ``records.totalCount`` (the whole result, not the page),
             ``pageInfo`` and ``edges`` in camelCase. ``where`` is a filter node
             (``attribute`` or ``field`` plus one operator) or ``and``/``or`` lists of
