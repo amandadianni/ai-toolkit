@@ -103,7 +103,12 @@ def _record_filter_json_schema() -> dict[str, Any]:
         elif key in ("contains", "ncontains", "in", "nin"):
             properties[key] = {"type": "array"}
         elif key in ("between", "nbetween"):
-            properties[key] = {"type": "object", "properties": {"min": {}, "max": {}}}
+            properties[key] = {
+                "type": "object",
+                "properties": {"min": {}, "max": {}},
+                "required": ["min", "max"],
+                "additionalProperties": False,
+            }
         else:
             properties[key] = {}
     return {

@@ -5,6 +5,7 @@ from types import MethodType, SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+import jsonschema
 import pytest
 from _mcp_compat import (
     create_connected_server_and_client_session as create_client_session,
@@ -16,7 +17,13 @@ from mcp.types import (
     ElicitRequestParams,
     ElicitResult,
 )
-from pipefy_sdk import PipefyClient, PipefyGraphQLError, PipefyRequestTimeoutError
+from pipefy_sdk import (
+    PipefyClient,
+    PipefyGraphQLError,
+    PipefyRequestTimeoutError,
+    RecordFilter,
+)
+from pydantic import TypeAdapter, ValidationError
 
 from pipefy_mcp.auth import RequestScopedIdentity
 from pipefy_mcp.core.runtime import McpRuntime
@@ -26,7 +33,11 @@ from pipefy_mcp.tools.pipe_tool_helpers import (
     FIND_CARDS_EMPTY_MESSAGE,
     DeleteCardErrorPayload,
 )
-from pipefy_mcp.tools.pipe_tools import FIND_CARDS_RESPONSE_KEY, PipeTools
+from pipefy_mcp.tools.pipe_tools import (
+    _RECORD_FILTER_ARG_SCHEMA,
+    FIND_CARDS_RESPONSE_KEY,
+    PipeTools,
+)
 from tools.conftest import assert_invalid_arguments_envelope, build_tool_test_server
 from tools.destructive_confirm_test_support import confirm_after_preview
 
@@ -3798,3 +3809,47 @@ async def test_comment_and_card_mutations_emit_unstructured_content(
     # The tool body returns a plain success dict; structured_output=False
     # means no structuredContent is emitted on the MCP protocol side.
     assert result.structured_content is None
+
+
+_FILTER_UUID = "00000000-0000-4000-8000-0000000000aa"
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        {"attribute": "TITLE", "ilike": "acme"},
+        {"field": _FILTER_UUID, "eq": None},
+        {"attribute": "ASSIGNEES", "in": ["900000001", 2]},
+        {
+            "attribute": "FINISHED_AT",
+            "between": {"min": "2026-01-01", "max": "2026-01-31"},
+        },
+        {
+            "and": [
+                {"attribute": "TITLE", "eq": "a"},
+                {"or": [{"field": _FILTER_UUID, "gt": 1.5}]},
+            ]
+        },
+        {"attribute": "EMAIL_READ", "eq": True},
+    ],
+)
+def test_get_records_schema_accepts_what_the_model_accepts(where):
+    TypeAdapter(RecordFilter).validate_python(where)
+    jsonschema.validate(where, _RECORD_FILTER_ARG_SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        {"attribute": "TITLE", "eqq": 1},
+        {"attribute": "created_at", "eq": 1},
+        {"attribute": "FINISHED_AT", "between": {"min": "2026-01-01"}},
+        {"attribute": "FINISHED_AT", "between": {"min": 1, "max": 2, "x": 3}},
+        {"and": "x"},
+    ],
+)
+def test_get_records_schema_rejects_what_the_model_rejects(where):
+    with pytest.raises(ValidationError):
+        TypeAdapter(RecordFilter).validate_python(where)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(where, _RECORD_FILTER_ARG_SCHEMA)
