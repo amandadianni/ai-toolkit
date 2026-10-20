@@ -71,7 +71,7 @@ field update happen outside the tool** — a non-2xx PUT or a failed
 
 - **`step=validation`.** No source, both sources, a `file_url` with no
   inferable `file_name`, or `file_path` passed on the hosted server. Recovery:
-  pass exactly one source; on the hosted server use `file_url`; supply
+  give exactly one source; on the hosted server use `file_url`; supply
   `file_name` when a URL has no basename.
 - **`step=file_read`.** `file_path` does not exist, points to a directory, is
   unreadable, has an unknown `~user` prefix, or is **larger than 100 MiB**.

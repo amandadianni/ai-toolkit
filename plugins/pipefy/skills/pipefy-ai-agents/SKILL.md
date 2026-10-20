@@ -192,13 +192,13 @@ Inside `actionParams.aiBehaviorParams` a behavior may also carry:
 - Action types are valid (`KNOWN_AI_ACTION_TYPES`; `create_table_record` `fieldsAttributes` are **table** field IDs, so they are not checked against the pipe and surface a warning to verify with `get_table`; `send_email_template` metadata runs no pipe field-ID checks)
 - Behavior structure passes Pydantic validation (including canonical `capabilitiesAttributes` shape and at most one of `providerId` / `systemProviderId`)
 - `fieldsAttributes[].fieldId` values (outputs) are checked against start-form and phase fields, accepting both slug `id` and numeric `internal_id`. Instruction `%{field:...}` tokens (inputs) are **not** existence-checked: a missing id/slug still yields `valid: true`. Slug → numeric rewrite happens only on create/update, not here.
-- Pass `data_source_ids` (agent-level) to also check knowledge base membership: it is unioned with each behavior's `dataSourceIds` and checked against the pipe's knowledge bases. Unknown IDs are **warnings only** (`valid` stays true); if the knowledge base list cannot be read, a single warning is added and the check is skipped.
+- Set `data_source_ids` (agent-level) to also check knowledge base membership: it is unioned with each behavior's `dataSourceIds` and checked against the pipe's knowledge bases. Unknown IDs are **warnings only** (`valid` stays true); if the knowledge base list cannot be read, a single warning is added and the check is skipped.
 
 **`strict_unknown_action_types`** (default `true`): an `actionType` outside `KNOWN_AI_ACTION_TYPES` is reported in `problems` (blocking). Set `false` to demote unknown action types to `warnings` only, so `valid` stays true.
 
 ### 7 — Create the agent
 
-`create_ai_agent` with `name`, `repo_uuid`, `instruction`, and `behaviors`. One-call creation is preferred — avoids partial agent shells. Agents are **active by default**; pass `active=false` to start disabled (see [Active lifecycle](#active-lifecycle)).
+`create_ai_agent` with `name`, `repo_uuid`, `instruction`, and `behaviors`. One-call creation is preferred — avoids partial agent shells. Agents are **active by default**; set `active=false` to start disabled (see [Active lifecycle](#active-lifecycle)).
 
 On create/update, slug `fieldId` values are resolved to numeric `internal_id`, `%{field:<slug>}` is rewritten to `%{field:<internal_id>}`, and `referencedFieldIds` is auto-populated when applicable. The SDK injects action `referenceId` values and `%{action:<uuid>}` placeholders for every surface; do not generate them yourself.
 
@@ -223,7 +223,7 @@ Knowledge bases are pipe-scoped data sources an agent draws on. Attach one by pu
 | `get_ai_knowledge_bases` | Yes | List every item on a pipe (plain texts, documents, data lookups); each has an `id` for `dataSourceIds` and a `type` (`knowledge_base_plain_texts`, `knowledge_base_documents`, or `data_lookups`). |
 | `get_ai_knowledge_base_plain_text` | Yes | Fetch one plain text with its content. |
 | `create_ai_knowledge_base_plain_text` | No | Create a plain text (`name`, `content` 1-3500, `description` 1-900 — all required). |
-| `update_ai_knowledge_base_plain_text` | No | Partial update; pass at least one of name/content/description. |
+| `update_ai_knowledge_base_plain_text` | No | Partial update; send at least one of name/content/description. |
 | `delete_ai_knowledge_base_plain_text` | No | **Destructive; review and approve first.** |
 | `get_ai_knowledge_base_document` | Yes | Fetch one document's metadata (`content` is the stored URL, not text). |
 | `create_ai_knowledge_base_document` | No | Upload a PDF (`name`, `description` 1-900, `file_path`). `.pdf` + 20 MiB cap; indexing is asynchronous. |
@@ -278,7 +278,7 @@ Instructions accept five token aliases — all normalize to canonical `%{field:<
 
 ## Template params / placeholders
 
-Per behavior you can pass `template_params` (or `placeholders`) with `str → str` values and use `{{name}}` in any string (instruction, metadata IDs, etc.). Optionally set `instruction_template` instead of `aiBehaviorParams.instruction` — the final instruction is interpolated and written before the API call (by the MCP tools, the CLI, and the SDK's `CreateAiAgentInput` / `UpdateAiAgentInput`). These keys are stripped during validation.
+Per behavior you can give `template_params` (or `placeholders`) with `str → str` values and use `{{name}}` in any string (instruction, metadata IDs, etc.). Optionally set `instruction_template` instead of `aiBehaviorParams.instruction` — the final instruction is interpolated and written before the API call (by the MCP tools, the CLI, and the SDK's `CreateAiAgentInput` / `UpdateAiAgentInput`). These keys are stripped during validation.
 
 ```json
 {
@@ -324,7 +324,7 @@ Per behavior you can pass `template_params` (or `placeholders`) with `str → st
 ## Failure modes
 
 - **`update_ai_agent` is full-replace, not patch.** Read the agent with `get_ai_agent`, change what you need, and send the complete behaviors list back. A behavior you leave out is deleted. You can send the read behaviors back as they are; the ids and `%{action:…}` lines they carry are replaced on save. Update never reactivates a disabled agent; use `toggle_ai_agent_status` for that.
-- **A rejected update is not rolled back.** Pipefy applies the name and instruction and removes the current behaviors before it saves the new list. When it then rejects the list (`RECORD_NOT_SAVED`), the agent is left with no behaviors, or only part of the new list, and stays enabled. Before `update_ai_agent`, keep the `get_ai_agent` result and run `validate_ai_agent_behaviors`, which checks each `event_id` against `get_automation_events` — warning you when those events cannot be loaded, so an unverified `event_id` never reads as a clean pass — and validates the `human_validation`/`mcp_tool` action metadata. After a failure, call `get_ai_agent` to see what is left, fix the payload, and send the full list again.
+- **A rejected update is not rolled back.** Pipefy applies the name and instruction and removes the current behaviors before it saves the new list. When it then rejects the list (`RECORD_NOT_SAVED`), the agent is left with no behaviors, or only part of the new list, and stays enabled. Before `update_ai_agent`, keep the `get_ai_agent` result and run `validate_ai_agent_behaviors`, which checks each `event_id` against `get_automation_events` — warning you when those events cannot be loaded, so an unverified `event_id` never reads as a clean result — and validates the `human_validation`/`mcp_tool` action metadata. After a failure, call `get_ai_agent` to see what is left, fix the payload, and send the full list again.
 - **`RECORD_NOT_SAVED` does not name the cause.** `validate_ai_agent_behaviors` now names several of them — an unknown `event_id` (when the pipe's automation events load), and a `human_validation` or `mcp_tool` action with missing metadata — so run it first. The same message still covers payload errors the pre-flight cannot see, so rule those named causes out before you conclude the pipe does not support AI agent behaviors.
 - **Partial-failure recovery.** If `create_ai_agent` returns a UUID but reports failure, call `update_ai_agent(uuid, repo_uuid, name, instruction, behaviors)` — all five are required. Reuse the create `repo_uuid`; send the full behaviors list. Do NOT create a second agent. Update preserves disabled state; use `toggle_ai_agent_status` to change enablement.
 - **Cross-pipe `PERMISSION_DENIED`.** Behaviors with `create_connected_card` or cross-pipe `create_card` require the service account to be a member of **both** source and destination pipes. When it is not, the API returns a bare `PERMISSION_DENIED`. Recovery: `get_pipe_members` + `invite_members` on the destination pipe.
