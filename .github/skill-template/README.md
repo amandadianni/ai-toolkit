@@ -8,7 +8,7 @@ Starter layout for a new Pipefy skill in the Anthropic Skills format. Use it in 
 
    ```bash
    cp -R .github/skill-template/pipefy-skill-template \
-     skills/<domain>/pipefy-<domain>-<action>
+     plugins/pipefy/skills/pipefy-<domain>-<action>
    ```
 
 2. Rename placeholders in `SKILL.md` (`name`, title, tags, tools, steps).
@@ -18,4 +18,4 @@ Starter layout for a new Pipefy skill in the Anthropic Skills format. Use it in 
 
 Regulated domains (`legal`, `human-resources`, `finance`, `compliance`, or decisions about natural persons) also need a filled [`COMPLIANCE.md`](../../docs/compliance/COMPLIANCE.template.md) and Legal review — see [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
-This starter lives outside `skills/`, so it is not part of the published catalog.
+This starter lives outside `plugins/pipefy/skills/`, so it is not part of the published catalog.

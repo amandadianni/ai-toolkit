@@ -23,7 +23,7 @@
 packages/sdk/   → pipefy            (Vendor API SDK — GraphQL, models, services; dist named `pipefy`, import module `pipefy_sdk`)
 packages/mcp/   → pipefy-mcp-server (MCP tools, server lifecycle; depends on pipefy)
 packages/cli/   → pipefy-cli        (Typer CLI; depends on pipefy)
-skills/         → agent skills catalog (Markdown; no Python package)
+plugins/pipefy/ → Claude Code and Cursor plugin: MCP config, commands, agent skills catalog (Markdown; no Python package)
 ```
 
 **Vendor API SDK** means the GraphQL-facing library (`pipefy`) used by both MCP and CLI, distinct from app glue or generic shared helpers. MCP and CLI depend on it and never import each other.
@@ -138,7 +138,7 @@ A capability means an SDK method + MCP tool + CLI command, all in parity:
 4. Register the MCP tool in `packages/mcp/src/pipefy_mcp/tools/`, add its name to `PIPEFY_TOOL_NAMES` in `registry.py`, and assign it a subject domain in `tools/toolsets.py` (the drift-guard in `tests/tools/test_toolsets.py` fails the build for an unassigned tool).
 5. Add the CLI command in `packages/cli/src/pipefy_cli/commands/` and register it in `main.py`.
 6. Update `docs/parity.md`: mark as shipped, or record a deferral.
-7. Update affected skills in `skills/` in the same PR (or a paired PR in the same review window).
+7. Update affected skills in `plugins/pipefy/skills/` in the same PR (or a paired PR in the same review window).
 
 TDD-first: write tests before each layer (red → green → refactor).
 
