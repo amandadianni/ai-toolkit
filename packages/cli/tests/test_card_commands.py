@@ -184,15 +184,14 @@ def test_card_records_sdk_value_error_exits_2(
 ):
     oauth_env("records-slug")
     mock_client = MagicMock()
-    mock_client.get_records = AsyncMock(
-        side_effect=ValueError("field must be the custom field uuid")
-    )
+    mock_client.get_records = AsyncMock(side_effect=ValueError("rejected by the SDK"))
 
     result = _invoke_card_records(
-        runner, mock_client, "--pipe", "1", "--where", '{"field": "slug", "eq": 1}'
+        runner, mock_client, "--pipe", "1", "--where", '{"attribute": "TITLE", "eq": 1}'
     )
 
     assert result.exit_code == 2
+    mock_client.get_records.assert_awaited_once()
 
 
 def test_card_find_json(runner, clean_pipefy_env, saved_cwd, oauth_env):
