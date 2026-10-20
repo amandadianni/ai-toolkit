@@ -202,6 +202,16 @@ DELETE_ELEMENT_MUTATION = gql(
     """
 )
 
+WRITE_HTML_DOCUMENT_MUTATION = gql(
+    """
+    mutation WriteInterfaceHtml($input: InterfacePageElementWriteHtmlDocumentInput!) {
+        writeHtmlDocument(input: $input) {
+            success
+        }
+    }
+    """
+)
+
 DUPLICATE_ELEMENT_MUTATION = gql(
     """
     mutation DuplicatePortalElement($input: DuplicateInterfaceElementInput!) {
@@ -245,4 +255,5 @@ __all__ = [
     "UPDATE_INTERFACE_MUTATION",
     "UPDATE_PAGE_LAYOUT_MUTATION",
     "UPDATE_PAGE_MUTATION",
+    "WRITE_HTML_DOCUMENT_MUTATION",
 ]

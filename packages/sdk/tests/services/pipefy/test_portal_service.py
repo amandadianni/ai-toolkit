@@ -18,11 +18,19 @@ from _shared.mock_clients import mock_executor
 from gql import gql
 from pydantic import ValidationError
 
-from pipefy_sdk.exceptions import PortalPermissionError
+from pipefy_sdk.exceptions import (
+    HtmlValidationError,
+    HtmlViolation,
+    PortalPermissionError,
+)
 from pipefy_sdk.graphql_executor import PipefyGraphQLError
 from pipefy_sdk.models.portal import parse_portal_page_layout
 from pipefy_sdk.queries.observability_queries import RESOLVE_ORGANIZATION_UUID_QUERY
-from pipefy_sdk.queries.portal_queries import GET_PORTAL_QUERY, LIST_PORTALS_QUERY
+from pipefy_sdk.queries.portal_queries import (
+    GET_PORTAL_QUERY,
+    LIST_PORTALS_QUERY,
+    WRITE_HTML_DOCUMENT_MUTATION,
+)
 from pipefy_sdk.services.portal_service import PortalService
 
 
@@ -1895,3 +1903,125 @@ def test_get_portal_selects_page_layout():
         if field.name.value == "pages"
     )
     assert "layout" in {field.name.value for field in pages.selection_set.selections}
+
+
+_SCRIPT_VIOLATION = {
+    "code": "SCRIPT_FORBIDDEN",
+    "message": "Scripts are not allowed on this page.",
+    "selector": "script",
+    "attribute": None,
+}
+
+_ONCLICK_VIOLATION = {
+    "code": "EVENT_HANDLER_FORBIDDEN",
+    "message": "Event handler attributes are not allowed.",
+    "selector": "button",
+    "attribute": "onclick",
+}
+
+
+def _html_validation_failed_error(violations: list[dict]) -> PipefyGraphQLError:
+    return PipefyGraphQLError(
+        [
+            {
+                "message": " ".join(v["message"] for v in violations),
+                "extensions": {
+                    "code": "HTML_VALIDATION_FAILED",
+                    "violations": violations,
+                },
+            }
+        ]
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_interface_html_sends_page_element_and_content() -> None:
+    """writeHtmlDocument takes snake_case page_id and element_id under input."""
+    service, interfaces, _internal = _make_portal_service_with_clients(
+        interfaces_return={"writeHtmlDocument": {"success": True}},
+    )
+
+    result = await service.write_interface_html(
+        page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
+    )
+
+    assert result == {"writeHtmlDocument": {"success": True}}
+    query_used, variables = interfaces.execute_query.call_args[0]
+    assert query_used is WRITE_HTML_DOCUMENT_MUTATION
+    assert variables == {
+        "input": {
+            "page_id": "page-1",
+            "element_id": "el-1",
+            "content": "<h1>Sales</h1>",
+        }
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_interface_html_raises_every_violation() -> None:
+    """HTML_VALIDATION_FAILED becomes HtmlValidationError carrying each violation."""
+    graphql_error = _html_validation_failed_error(
+        [_SCRIPT_VIOLATION, _ONCLICK_VIOLATION]
+    )
+    service, interfaces, _internal = _make_portal_service_with_clients()
+    interfaces.execute_query.side_effect = graphql_error
+
+    with pytest.raises(HtmlValidationError) as exc_info:
+        await service.write_interface_html(
+            page_id="page-1", element_id="el-1", content="<script></script>"
+        )
+
+    assert exc_info.value.violations == (
+        HtmlViolation(
+            code="SCRIPT_FORBIDDEN",
+            message="Scripts are not allowed on this page.",
+            selector="script",
+            attribute=None,
+        ),
+        HtmlViolation(
+            code="EVENT_HANDLER_FORBIDDEN",
+            message="Event handler attributes are not allowed.",
+            selector="button",
+            attribute="onclick",
+        ),
+    )
+    assert exc_info.value.__cause__ is graphql_error
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_interface_html_permission_denied_raises_portal_permission_error() -> (
+    None
+):
+    service, interfaces, _internal = _make_portal_service_with_clients()
+    interfaces.execute_query.side_effect = _PERMISSION_DENIED_ERROR
+
+    with pytest.raises(PortalPermissionError):
+        await service.write_interface_html(
+            page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_interface_html_reraises_other_graphql_errors() -> None:
+    """A feature gate or a missing element keeps the API's own error."""
+    feature_blocked = PipefyGraphQLError(
+        [
+            {
+                "message": "AI-generated interfaces are not enabled.",
+                "extensions": {"code": "FEATURE_BLOCKED"},
+            }
+        ]
+    )
+    service, interfaces, _internal = _make_portal_service_with_clients()
+    interfaces.execute_query.side_effect = feature_blocked
+
+    with pytest.raises(PipefyGraphQLError) as exc_info:
+        await service.write_interface_html(
+            page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
+        )
+
+    assert exc_info.value is feature_blocked

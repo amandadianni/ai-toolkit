@@ -8,7 +8,11 @@ from typing import Any
 
 from graphql import DocumentNode
 
-from pipefy_sdk.exceptions import PortalPermissionError
+from pipefy_sdk.exceptions import (
+    HtmlValidationError,
+    HtmlViolation,
+    PortalPermissionError,
+)
 from pipefy_sdk.graphql_executor import GraphQLExecutor, PipefyGraphQLError
 from pipefy_sdk.graphql_problem import GraphQLProblemKind, classify_exception
 from pipefy_sdk.models.portal import (
@@ -42,6 +46,7 @@ from pipefy_sdk.queries.portal_queries import (
     UPDATE_INTERFACE_MUTATION,
     UPDATE_PAGE_LAYOUT_MUTATION,
     UPDATE_PAGE_MUTATION,
+    WRITE_HTML_DOCUMENT_MUTATION,
 )
 from pipefy_sdk.utils.organization_identifiers import resolve_organization_uuid
 from pipefy_sdk.utils.relay import unwrap_relay_connection_nodes
@@ -79,6 +84,45 @@ def _map_portal_permission_error(
     if problem is not None and problem.kind is GraphQLProblemKind.PERMISSION_DENIED:
         return PortalPermissionError(_PORTAL_PERMISSION_MESSAGE)
     return None
+
+
+_HTML_VALIDATION_FAILED_CODE = "HTML_VALIDATION_FAILED"
+
+
+def _optional_text(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _parse_html_validation_error(
+    exc: PipefyGraphQLError,
+) -> HtmlValidationError | None:
+    """Return the violations of an ``HTML_VALIDATION_FAILED`` error; else ``None``.
+
+    The API puts each violation on ``extensions.violations`` of the first error, as
+    ``code``, ``message``, ``selector`` and ``attribute``. Entries that are not
+    objects are skipped; an error with no usable violation stays a plain
+    ``PipefyGraphQLError``, whose message still says what failed.
+    """
+    problem = classify_exception(exc)
+    if problem is None or problem.code is None:
+        return None
+    if problem.code.strip().upper() != _HTML_VALIDATION_FAILED_CODE:
+        return None
+    extensions = exc.errors[0].get("extensions") or {}
+    raw_violations = extensions.get("violations")
+    if not isinstance(raw_violations, list):
+        return None
+    violations = tuple(
+        HtmlViolation(
+            code=str(raw.get("code") or ""),
+            message=str(raw.get("message") or ""),
+            selector=_optional_text(raw.get("selector")),
+            attribute=_optional_text(raw.get("attribute")),
+        )
+        for raw in raw_violations
+        if isinstance(raw, dict)
+    )
+    return HtmlValidationError(violations) if violations else None
 
 
 def _serialize_interfaces_json(value: dict[str, Any] | list[Any]) -> str:
@@ -706,6 +750,41 @@ class PortalService:
             DELETE_ELEMENT_MUTATION,
             {"input": variables},
         )
+
+    async def write_interface_html(
+        self, *, page_id: str, element_id: str, content: str
+    ) -> dict[str, Any]:
+        """Write the HTML document of an HTML interface's ``customCode`` element.
+
+        Writing publishes: the new document goes live as soon as it is stored.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            content: The whole HTML document; it replaces the live one.
+
+        Raises:
+            HtmlValidationError: The HTML broke the API's HTML rules; nothing was
+                stored, and ``violations`` lists every rule it broke.
+            PortalPermissionError: The caller cannot update the interface.
+        """
+        try:
+            return await _execute_query_with_portal_errors(
+                self.execute_interfaces_query,
+                WRITE_HTML_DOCUMENT_MUTATION,
+                {
+                    "input": {
+                        "page_id": page_id,
+                        "element_id": element_id,
+                        "content": content,
+                    }
+                },
+            )
+        except PipefyGraphQLError as exc:
+            validation_error = _parse_html_validation_error(exc)
+            if validation_error is not None:
+                raise validation_error from exc
+            raise
 
     async def duplicate_portal_element(
         self,

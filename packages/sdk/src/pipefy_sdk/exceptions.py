@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 # Typed SDK errors for gradual service-layer migration; not all call sites raise these yet.
 
 
@@ -61,6 +63,36 @@ class AiAgentConfigureError(PipefyError):
                 "call toggle_ai_agent_status to activate it."
             )
         super().__init__(message)
+
+
+@dataclass(frozen=True)
+class HtmlViolation:
+    """One rule an interface's HTML broke, as the API reports it.
+
+    ``selector`` names the offending tag and ``attribute`` the offending
+    attribute on it; both are ``None`` for a violation of the whole document,
+    such as its size.
+    """
+
+    code: str
+    message: str
+    selector: str | None
+    attribute: str | None
+
+
+class HtmlValidationError(PipefyError):
+    """Raised when an HTML interface write fails validation (``HTML_VALIDATION_FAILED``).
+
+    Nothing was stored. ``violations`` lists every rule the HTML broke, so a
+    caller can fix them all before writing again.
+    """
+
+    def __init__(self, violations: tuple[HtmlViolation, ...]) -> None:
+        self.violations = violations
+        super().__init__(
+            "HTML validation failed: "
+            + " ".join(violation.message for violation in violations)
+        )
 
 
 class PortalPermissionError(ValueError):
