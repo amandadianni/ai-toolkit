@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, get_args
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import NoBackChannelError
@@ -13,6 +13,7 @@ from pipefy_sdk import (
     CommentInput,
     DeleteCommentInput,
     PipefyId,
+    RecordAttribute,
     RecordFilter,
     RecordOrder,
     UpdateCommentInput,
@@ -28,7 +29,7 @@ from pipefy_sdk import (
 from pipefy_sdk import phase_fill_no_write_result as _phase_fill_no_write_result
 from pipefy_sdk import skipped_field_ids as _skipped_field_ids
 from pipefy_sdk.models.form import MalformedFieldDefinitionError
-from pydantic import ValidationError
+from pydantic import ValidationError, WithJsonSchema
 
 from pipefy_mcp.core.tool_error_envelope import (
     is_unified_envelope_enabled,
@@ -88,6 +89,33 @@ from pipefy_mcp.tools.validation_helpers import validate_tool_id
 
 # Key for findCards response; used when reading edges and adding empty message.
 FIND_CARDS_RESPONSE_KEY = "findCards"
+
+
+def _record_filter_json_schema() -> dict[str, Any]:
+    properties: dict[str, Any] = {}
+    for key in RecordFilter.__annotations__:
+        if key in ("and", "or"):
+            properties[key] = {"type": "array", "items": {"type": "object"}}
+        elif key == "attribute":
+            properties[key] = {"enum": list(get_args(RecordAttribute))}
+        elif key == "field":
+            properties[key] = {"type": "string"}
+        elif key in ("contains", "ncontains", "in", "nin"):
+            properties[key] = {"type": "array"}
+        elif key in ("between", "nbetween"):
+            properties[key] = {"type": "object", "properties": {"min": {}, "max": {}}}
+        else:
+            properties[key] = {}
+    return {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+
+
+# The generated schema for the recursive RecordFilter is ~3k characters and the only
+# recursive $ref in the server; publish a flat one. Validation still uses RecordFilter.
+_RECORD_FILTER_ARG_SCHEMA = {"anyOf": [_record_filter_json_schema(), {"type": "null"}]}
 
 
 class PipeTools:
@@ -737,7 +765,9 @@ class PipeTools:
         async def get_records(
             ctx: Context,
             pipe_id: PipefyId,
-            where: RecordFilter | None = None,
+            where: Annotated[
+                RecordFilter | None, WithJsonSchema(_RECORD_FILTER_ARG_SCHEMA)
+            ] = None,
             search_term: str | None = None,
             phase_id: PipefyId | None = None,
             order_by: list[RecordOrder] | None = None,

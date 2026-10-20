@@ -1583,6 +1583,37 @@ class TestGetRecordsTool:
         assert_invalid_arguments_envelope(result)
         mock_pipefy_client.get_records.assert_not_called()
 
+    async def test_get_records_publishes_a_flat_filter_schema(self, client_session):
+        async with client_session as session:
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+        schema = tools["get_records"].input_schema
+        where = next(
+            s for s in schema["properties"]["where"]["anyOf"] if s.get("properties")
+        )
+
+        assert "RecordFilter" not in json.dumps(schema)
+        assert where["additionalProperties"] is False
+        assert len(where["properties"]["attribute"]["enum"]) == 13
+        assert {"and", "or", "field", "eq", "in", "between", "ilike"} <= where[
+            "properties"
+        ].keys()
+        assert len(json.dumps(where)) < 1000
+
+    async def test_get_records_flat_schema_still_validates_nested_keys(
+        self, client_session, mock_pipefy_client, pipe_id
+    ):
+        mock_pipefy_client.get_records = AsyncMock(return_value=_records_response())
+        async with client_session as session:
+            result = await session.call_tool(
+                "get_records",
+                {
+                    "pipe_id": pipe_id,
+                    "where": {"and": [{"attribute": "TITLE", "eqq": 1}]},
+                },
+            )
+        assert_invalid_arguments_envelope(result)
+        mock_pipefy_client.get_records.assert_not_called()
+
     async def test_get_records_permission_denied_says_pipe_is_not_visible(
         self, client_session, mock_pipefy_client, pipe_id, extract_payload
     ):
