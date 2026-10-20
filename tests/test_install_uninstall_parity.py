@@ -417,6 +417,9 @@ _ONBOARDING = (
     / "pipefy-toolkit-setup"
     / "SKILL.md"
 )
+_UNINSTALL_GUIDE_URL = (
+    "https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md"
+)
 
 
 def test_the_onboarding_skill_verifies_without_a_repository_checkout():
@@ -425,13 +428,20 @@ def test_the_onboarding_skill_verifies_without_a_repository_checkout():
     assert "(references/mcp.md)" in body
     body = (_ONBOARDING.parent / "references/mcp.md").read_text(encoding="utf-8")
     verify = body.split("4. **Verify**", 1)[1].split("## Failure modes", 1)[0]
-    assert "curl -LsSf" in verify
-    assert "uninstall.sh | sh -s -- --scan" in verify
+    assert _UNINSTALL_GUIDE_URL in verify
+    guide = (_ONBOARDING.parents[4] / "docs/uninstall.md").read_text(encoding="utf-8")
+    assert "uninstall.sh | sh -s -- --scan" in guide
     for line in body.splitlines():
         # A bare `./uninstall.sh` as the instruction is the dead command; naming
-        # it as the checkout alternative beside the curl form is not.
+        # it as the checkout alternative beside the guide link is not.
         if "./uninstall.sh" in line:
-            assert "curl -LsSf" in line, line
+            assert _UNINSTALL_GUIDE_URL in line, line
+
+
+def test_the_onboarding_skill_does_not_pipe_a_download_into_a_shell():
+    """The Claude plugin directory flags a fetch piped into sh as an install-time risk."""
+    for path in _ONBOARDING.parent.rglob("*.md"):
+        assert "| sh" not in path.read_text(encoding="utf-8"), path
 
 
 # ------------------------------------------------------------- the pipe drain
