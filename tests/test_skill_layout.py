@@ -24,3 +24,9 @@ def test_references_resolve_in_flat_installation(tmp_path):
             resolved = (document.parent / unquote(url.path)).resolve()
             assert resolved.is_relative_to(tmp_path), (document, target)
             assert resolved.is_file(), (document, target)
+
+
+def test_plugin_readme_lists_every_skill():
+    catalog = (_SKILLS.parent / "README.md").read_text(encoding="utf-8")
+    listed = set(re.findall(r"\]\(skills/([^/)]+)/SKILL\.md\)", catalog))
+    assert listed == {entry.parent.name for entry in _SKILLS.glob("*/SKILL.md")}

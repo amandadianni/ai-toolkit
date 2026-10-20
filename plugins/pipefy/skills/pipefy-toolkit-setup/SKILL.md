@@ -60,4 +60,4 @@ Edge cases: [`packages/mcp/README.md`](https://github.com/pipefy/ai-toolkit/blob
 
 - [`docs/install.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/install.md)
 - [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md) — `uninstall.sh --scan`, teardown, and switching between hosted, local, and plugin
-- [`skills/README.md`](https://github.com/pipefy/ai-toolkit/blob/main/skills/README.md)
+- [`plugins/pipefy/README.md`](https://github.com/pipefy/ai-toolkit/blob/main/plugins/pipefy/README.md)

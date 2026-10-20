@@ -100,7 +100,7 @@ npx skills add pipefy/ai-toolkit                           # all skills
 npx skills add pipefy/ai-toolkit --skill pipefy-pipes-and-cards
 ```
 
-Catalog and authoring guide: [`skills/README.md`](../skills/README.md).
+Catalog: [`plugins/pipefy/README.md`](../plugins/pipefy/README.md). Authoring guide: [`plugins/AGENTS.md`](../plugins/AGENTS.md).
 
 ## 6. Cursor Marketplace plugin
 

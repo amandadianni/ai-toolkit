@@ -49,4 +49,4 @@ Hard stops and quirks (phase connections UI-only, email template create/edit UI-
 
 - `pipefy-process-design` — consulting when the ask is design, not build.
 - `pipefy-process-impact` for consulting when the ask is impact, ROI, or justification, not build.
-- [skills/README.md](https://github.com/pipefy/ai-toolkit/blob/main/skills/README.md) — full catalog.
+- [plugins/pipefy/README.md](https://github.com/pipefy/ai-toolkit/blob/main/plugins/pipefy/README.md) — full catalog.

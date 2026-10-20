@@ -10,7 +10,7 @@ _SKILL_MD = _SKILLS / "pipefy-process-impact" / "SKILL.md"
 _DESIGN_MD = _SKILLS / "pipefy-process-design" / "SKILL.md"
 _INTELLIGENCE_MD = _SKILLS / "pipefy-process-intelligence" / "SKILL.md"
 _BUILDING_MD = _SKILLS / "pipefy-building" / "SKILL.md"
-_CATALOG_MD = _SKILLS / "README.md"
+_CATALOG_MD = _SKILLS.parent / "README.md"
 
 _IMPACT_GUIDANCE = (
     "Keep Impact to one line. Do not invent volume, hourly cost, or lead time; "
