@@ -64,6 +64,71 @@ GET_PORTAL_QUERY = gql(
     """
 )
 
+LIST_INTERFACES_QUERY = gql(
+    """
+    query ListInterfaces(
+        $org_uuid: ID!
+        $filterBySubType: InterfaceSubTypeFilter!
+        $searchTerm: String
+        $first: Int
+        $after: String
+    ) {
+        interfaces(
+            org_uuid: $org_uuid
+            filterBySubType: $filterBySubType
+            searchTerm: $searchTerm
+            first: $first
+            after: $after
+        ) {
+            edges {
+                node {
+                    id
+                    name
+                    visibility
+                    contentModeHtml
+                }
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }
+    }
+    """
+)
+
+GET_HTML_INTERFACE_QUERY = gql(
+    """
+    query GetHtmlInterface($uuid: ID!) {
+        interface(uuid: $uuid) {
+            id
+            name
+            visibility
+            contentModeHtml
+            pages {
+                id
+                title
+                elements {
+                    id
+                    type
+                    dataSources {
+                        repoId
+                        repoName
+                        repoType
+                        fieldKeys
+                    }
+                    htmlDocument {
+                        content
+                        contentHash
+                        createdAt
+                    }
+                }
+            }
+        }
+    }
+    """
+)
+
 FIND_OR_CREATE_PORTAL_MUTATION = gql(
     """
     mutation FindOrCreatePortal($input: InterfaceCreateByTemplateMutationInput!) {
@@ -238,7 +303,9 @@ __all__ = [
     "DELETE_PAGE_MUTATION",
     "DUPLICATE_ELEMENT_MUTATION",
     "FIND_OR_CREATE_PORTAL_MUTATION",
+    "GET_HTML_INTERFACE_QUERY",
     "GET_PORTAL_QUERY",
+    "LIST_INTERFACES_QUERY",
     "LIST_PORTALS_QUERY",
     "SORT_PAGES_MUTATION",
     "UPDATE_ELEMENT_MUTATION",
