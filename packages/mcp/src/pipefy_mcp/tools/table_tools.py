@@ -215,6 +215,7 @@ class TableTools:
         ) -> dict[str, Any]:
             """List records in a database table using cursor pagination.
 
+            Not for the cards of a pipe; use ``get_records`` to filter and count those.
             With the unified envelope, use top-level ``pagination.has_more``,
             ``pagination.end_cursor``, and ``pagination.page_size``; pass ``after``
             equal to ``end_cursor`` on the next call. Without the unified envelope,
