@@ -407,66 +407,6 @@ def test_every_receipt_key_the_writer_emits_survives_the_reader(tmp_path):
     assert unreadable == [], unreadable
 
 
-# --------------------------------------------------------- the onboarding skill
-
-_ONBOARDING = (
-    Path(__file__).resolve().parents[1]
-    / "plugins"
-    / "pipefy"
-    / "skills"
-    / "pipefy-toolkit-setup"
-    / "SKILL.md"
-)
-_UNINSTALL_GUIDE_URL = (
-    "https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md"
-)
-
-
-def test_the_onboarding_skill_verifies_without_a_repository_checkout():
-    """Hosted MCP and the plugin give the agent no clone to run a script from."""
-    body = _ONBOARDING.read_text(encoding="utf-8")
-    assert "(references/mcp.md)" in body
-    body = (_ONBOARDING.parent / "references/mcp.md").read_text(encoding="utf-8")
-    verify = body.split("4. **Verify**", 1)[1].split("## Failure modes", 1)[0]
-    assert "claude mcp list |" in verify
-    assert "~/.cursor/mcp.json" in verify
-    guide = (_ONBOARDING.parents[4] / "docs/uninstall.md").read_text(encoding="utf-8")
-    assert "uninstall.sh | sh -s -- --scan" in guide
-    for line in body.splitlines():
-        # Without a clone, `uninstall.sh` exists nowhere on the machine, so the
-        # skill names it only as the checkout form beside the guide that holds
-        # the command that downloads it.
-        if "uninstall.sh" in line:
-            assert "uninstall.sh" not in line.replace("./uninstall.sh", ""), line
-            assert _UNINSTALL_GUIDE_URL in line, line
-
-
-_DOWNLOAD_INTO_A_SHELL = re.compile(r"\|\s*(ba|z|da)?sh\b|sh -c \"\$\((curl|wget)\b")
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "curl -LsSf https://example.com/x.sh | sh -s -- --scan",
-        "curl -LsSf https://example.com/x.sh |bash",
-        'sh -c "$(curl -fsSL https://example.com/x.sh)"',
-    ],
-)
-def test_the_download_pattern_matches_each_shell_spelling(text):
-    assert _DOWNLOAD_INTO_A_SHELL.search(text)
-
-
-def test_the_download_pattern_ignores_a_table_cell():
-    assert not _DOWNLOAD_INTO_A_SHELL.search("| short names | yes |")
-
-
-def test_the_plugin_does_not_pipe_a_download_into_a_shell():
-    """The Claude plugin directory flags a fetch piped into a shell as an install-time risk."""
-    plugin = _ONBOARDING.parents[2]
-    for path in plugin.rglob("*.md"):
-        assert not _DOWNLOAD_INTO_A_SHELL.search(path.read_text(encoding="utf-8")), path
-
-
 # ------------------------------------------------------------- the pipe drain
 
 

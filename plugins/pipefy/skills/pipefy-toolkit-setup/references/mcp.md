@@ -48,33 +48,11 @@ Setup is outside the Pipefy MCP tool surface. After auth succeeds, verify with:
 
    - Shell (local / plugin / CLI): the CLI version check described in [CLI setup](cli.md). The Cursor plugin installs no CLI, so verify it with the MCP call below instead.
    - MCP: call `list_organizations` (needs no id — the natural first read; confirms the credential works and surfaces the org ids other tools need) or another read-only tool the user allows
-   - Registrations: count the Pipefy servers in the client you set up. A registration is any entry that points at the host `mcp.pipefy.com` or runs `pipefy-mcp-server`, whatever its name. Each check below prints only the matching servers, so no other server's settings reach the conversation.
-     - Claude Code: `claude mcp list | grep -E 'mcp\.pipefy\.com|pipefy-mcp-server'`. It prints one line per server and covers every scope, the plugin's server (`plugin:pipefy:pipefy`), and `claude.ai` connectors.
-     - Cursor and Claude Desktop keep servers in JSON, where one entry can match on several lines (`args`, `cwd`). This prints the file and name of each matching entry. A file that does not exist is skipped.
-
-       ```sh
-       python3 -c '
-       import json, sys
-       for path in sys.argv[1:]:
-           try:
-               servers = json.load(open(path)).get("mcpServers", {})
-           except OSError:
-               continue
-           for name, entry in servers.items():
-               runs = " ".join([entry.get("url", ""), entry.get("command", ""), *entry.get("args", [])])
-               if "mcp.pipefy.com" in runs or "pipefy-mcp-server" in runs:
-                   print(f"{path}: {name}")
-       ' ~/.cursor/mcp.json .cursor/mcp.json "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-       ```
-
-       A Cursor Marketplace install writes to neither Cursor file, so expect no Cursor entry on that path. Cursor shows the plugin in its own plugin UI.
-     - Codex: `grep -nE '^\[mcp_servers\.|mcp\.pipefy\.com|pipefy-mcp-server' ~/.codex/config.toml`. Count the `[mcp_servers.<name>]` headers that are followed by a match.
-
-     Expect exactly one Pipefy server for the path you chose, and none for the Cursor Marketplace plugin or CLI only. To check every client at once, use the report-only scan at the top of [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md); from a checkout, `./uninstall.sh --scan` does the same.
+   - Registrations: in Claude Code, `claude mcp list` shows every server with its URL or command, including the plugin's server and `claude.ai` connectors. Confirm that exactly one reaches `mcp.pipefy.com` or runs `pipefy-mcp-server`, under any name. For other clients, the report-only scan in [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md) checks every client at once.
 
 ## Success criteria
 
-- The registration check above finds exactly one Pipefy server in the chosen client (none for the Cursor plugin or CLI only).
+- Exactly one Pipefy server is registered for the chosen path (none for the Cursor plugin or CLI only).
 - Auth completed.
 - Read-only MCP call or the CLI version check described in [CLI setup](cli.md) succeeds.
 
@@ -83,8 +61,8 @@ Setup is outside the Pipefy MCP tool surface. After auth succeeds, verify with:
 | Symptom | Likely cause | Recovery |
 |---------|--------------|----------|
 | Slash commands missing | Plugin not installed | Install guide, [Claude Code plugin](https://github.com/pipefy/ai-toolkit/blob/main/docs/install.md#2-claude-code-plugin); add the marketplace and install the plugin first |
-| More than one Pipefy MCP registration | Hosted + local/plugin both registered, possibly under different names | The registration check above shows each one, including a `claude.ai` connector; remove-then-add recipes in [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md#switching-channels). A plugin-provided server ranks below user scope, so removing the user entry alone falls through to it: `claude mcp remove <name> -s user` (or the client's settings) |
-| Two Pipefy servers in Cursor | Marketplace plugin plus an entry in `~/.cursor/mcp.json` | Keep one. The Cursor check above shows the entry in `~/.cursor/mcp.json` (the key is free text); delete that key, or uninstall the plugin. [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md#to-the-cursor-marketplace-plugin) |
+| More than one Pipefy MCP registration | Hosted + local/plugin both registered, possibly under different names | `claude mcp list` or the scan in step 4 shows each one; remove-then-add recipes in [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md#switching-channels). A plugin-provided server ranks below user scope, so removing the user entry alone falls through to it: `claude mcp remove <name> -s user` (or the client's settings) |
+| Two Pipefy servers in Cursor | Marketplace plugin plus an entry in `~/.cursor/mcp.json` | Keep one. The scan in step 4 names the entry in `~/.cursor/mcp.json` (the key is free text); delete that key, or uninstall the plugin. [`docs/uninstall.md`](https://github.com/pipefy/ai-toolkit/blob/main/docs/uninstall.md#to-the-cursor-marketplace-plugin) |
 | `/pipefy:install` or `/plugin …` offered in Cursor | Those are Claude Code commands | Do not run them; they install the CLI. Stay in Cursor's plugin UI. Skills may still appear as `/pipefy-*` palette entries |
 | **Pipefy** is missing from Cursor's plugin catalog | Cursor's catalog does not show the plugin on this machine (an older Cursor build, or the listing not yet visible) | Offer the install guide's [Quick install](https://github.com/pipefy/ai-toolkit/blob/main/docs/install.md#3-quick-install-script) with `--client cursor`, saying first that it installs the local CLI and server the user was avoiding. From there they are on the Quick install path: the local CLI login described in [CLI setup](cli.md), the CLI version check described in [CLI setup](cli.md) |
 | Cursor sign-in fails with `unauthorized_client` or `Invalid client credentials` | The plugin's OAuth client is rejected at the token endpoint | Re-triggering repeats the same failing call. Uninstall the plugin, then offer the Quick install fallback above |
