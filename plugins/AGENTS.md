@@ -13,6 +13,7 @@ This guide defines how to maintain the Pipefy plugin in `plugins/pipefy/` and ho
 - **Manifests.** `.claude-plugin/plugin.json` has no `skills` field: Claude Code loads every folder under `skills/`. `.cursor-plugin/plugin.json` lists every skill folder in `skills` and keeps `"commands": []`, so a new skill needs an entry there.
 - **MCP config.** `.mcp.json` registers only the hosted server, `https://mcp.pipefy.com/mcp`, with type `http`. It carries the client id twice, as `auth.CLIENT_ID` and as `oauth.clientId`, because Cursor reads the first key and Claude Code reads the second.
 - **Directory limits.** The folder holds at most 200 tracked files, no file over 256 KiB unless it is an image, and no symbolic links. The Claude directory validation times out on large plugin folders: on the portal, folders of about 500 files or more timed out, and folders of 62 to 154 files passed.
+- **No download piped into a shell.** No file in the folder writes a command such as `curl ... | sh`, even as an instruction for the agent: the directory flags it as an install-time risk. Link to the doc that holds the command instead, the way the setup skill links to `docs/uninstall.md`.
 - **Versions.** Change versions only with `scripts/bump_version.py`. An installed plugin updates only when its version changes.
 - **License.** The `license` field in `plugin.json` meets the directory requirement, and `README.md` ends with the license and trademark notice. The folder has no copies of `LICENSE` or `NOTICE`.
 

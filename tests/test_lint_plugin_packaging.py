@@ -676,6 +676,23 @@ def test_symbolic_link_is_rejected():
     assert any("LICENSE is a symbolic link" in e for e in errors), errors
 
 
+def test_download_piped_into_a_shell_is_rejected():
+    texts = {
+        "a.md": "curl -LsSf https://example.com/x.sh | sh -s -- --scan",
+        "b.md": "curl -LsSf https://example.com/x.sh |bash",
+        "c.md": 'sh -c "$(curl -fsSL https://example.com/x.sh)"',
+    }
+    errors = _lint.lint_no_download_into_a_shell(texts)
+    assert [e.split(" ", 1)[0] for e in errors] == [
+        str(_lint.PLUGIN_DIR / name) for name in texts
+    ]
+
+
+def test_table_cell_is_not_a_shell_pipe():
+    texts = {"README.md": "| short names | yes |"}
+    assert _lint.lint_no_download_into_a_shell(texts) == []
+
+
 def test_main_exits_zero_on_this_repository():
     assert _lint.main() == 0
 

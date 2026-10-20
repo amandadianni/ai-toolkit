@@ -45,6 +45,9 @@ MAX_PLUGIN_FILES = 200
 MAX_NON_IMAGE_BYTES = 256 * 1024
 IMAGE_SUFFIXES = frozenset({".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"})
 GIT_SYMLINK_MODE = "120000"
+# The directory flags a download piped into a shell (RUNTIME_FETCH_EXEC) as an
+# install-time risk, even in Markdown that tells the agent to run it.
+DOWNLOAD_INTO_A_SHELL = re.compile(r"\|\s*(ba|z|da)?sh\b|sh -c \"\$\((curl|wget)\b")
 
 
 class PluginFile(NamedTuple):
@@ -154,6 +157,25 @@ def lint_directory_limits(files: list[PluginFile]) -> list[str]:
                 f"most {MAX_NON_IMAGE_BYTES} for a file that is not an image"
             )
     return errors
+
+
+def lint_no_download_into_a_shell(texts: dict[str, str]) -> list[str]:
+    """Return errors for plugin files that pipe a download into a shell."""
+    return [
+        f"{PLUGIN_DIR / path} pipes a download into a shell; the Claude "
+        "directory flags it as an install-time risk, so link to the doc that "
+        "holds the command"
+        for path, text in texts.items()
+        if DOWNLOAD_INTO_A_SHELL.search(text)
+    ]
+
+
+def _plugin_texts(plugin: Path, files: list[PluginFile]) -> dict[str, str]:
+    return {
+        file.path: (plugin / file.path).read_text(encoding="utf-8", errors="replace")
+        for file in files
+        if not file.is_symlink and Path(file.path).suffix.lower() not in IMAGE_SUFFIXES
+    }
 
 
 def _path_field_error(
@@ -530,8 +552,13 @@ def main() -> int:
         return 1
 
     errors = collect_errors(REPO_ROOT, listing)
-    files = _tracked_plugin_files(REPO_ROOT / PLUGIN_DIR)
-    errors.extend([files] if isinstance(files, str) else lint_directory_limits(files))
+    plugin = REPO_ROOT / PLUGIN_DIR
+    files = _tracked_plugin_files(plugin)
+    if isinstance(files, str):
+        errors.append(files)
+    else:
+        errors.extend(lint_directory_limits(files))
+        errors.extend(lint_no_download_into_a_shell(_plugin_texts(plugin, files)))
     if errors:
         print("Plugin packaging FAILED:", file=sys.stderr)
         for err in errors:
