@@ -428,13 +428,16 @@ def test_the_onboarding_skill_verifies_without_a_repository_checkout():
     assert "(references/mcp.md)" in body
     body = (_ONBOARDING.parent / "references/mcp.md").read_text(encoding="utf-8")
     verify = body.split("4. **Verify**", 1)[1].split("## Failure modes", 1)[0]
-    assert _UNINSTALL_GUIDE_URL in verify
+    assert "claude mcp list |" in verify
+    assert "~/.cursor/mcp.json" in verify
     guide = (_ONBOARDING.parents[4] / "docs/uninstall.md").read_text(encoding="utf-8")
     assert "uninstall.sh | sh -s -- --scan" in guide
     for line in body.splitlines():
-        # A bare `./uninstall.sh` as the instruction is the dead command; naming
-        # it as the checkout alternative beside the guide link is not.
-        if "./uninstall.sh" in line:
+        # Without a clone, `uninstall.sh` exists nowhere on the machine, so the
+        # skill names it only as the checkout form beside the guide that holds
+        # the command that downloads it.
+        if "uninstall.sh" in line:
+            assert "uninstall.sh" not in line.replace("./uninstall.sh", ""), line
             assert _UNINSTALL_GUIDE_URL in line, line
 
 
