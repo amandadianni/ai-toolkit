@@ -14,7 +14,7 @@
 - **`docs/mcp/tools/`**: Per-area MCP tool reference (parameters, edge cases, cross-cutting behavior). Includes `identifiers.md`, the canonical map of which tool/argument expects slug vs `internal_id` vs uuid vs numeric id.
 - **`docs/cli/`**: CLI-specific guides (e.g. introspect-then-execute).
 - **`docs/sdk/README.md`**: Using `pipefy` as a library.
-- **`plugins/AGENTS.md`**: Skill-authoring guide (frontmatter, naming, style). Start here before adding a skill.
+- **`plugins/AGENTS.md`**: Plugin and skill authoring guide (plugin folder rules, frontmatter, naming, style). Start here before changing the plugin or adding a skill.
 - **`plugins/pipefy/skills/pipefy-toolkit-setup/`**: First-time setup checklist for agents (links to the install guide; does not own commands).
 
 ## Project structure

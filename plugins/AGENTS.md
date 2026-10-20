@@ -1,6 +1,31 @@
-# Skills — Authoring Guide
+# Plugin and skill authoring guide
 
-This document defines how to author, name, and maintain skills in the `ai-toolkit` monorepo.
+This guide defines how to maintain the Pipefy plugin in `plugins/pipefy/` and how to author, name and maintain its skills.
+
+---
+
+## The plugin folder
+
+`plugins/pipefy/` is the plugin. The Claude Code and Cursor marketplaces at the repository root (`.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json`) point at it with `"source": "./plugins/pipefy"`, and users install only this folder. Put a file here only if the plugin loads it or the directory listing shows it: the two plugin manifests, `.mcp.json`, `assets/`, `commands/`, `skills/` and `README.md`. Everything for contributors, like this guide, stays outside.
+
+`lint_plugin_packaging.py` checks every rule in this section. Run it after you stage your files, because it reads tracked files through `git ls-files`.
+
+- **Manifests.** `.claude-plugin/plugin.json` has no `skills` field: Claude Code loads every folder under `skills/`. `.cursor-plugin/plugin.json` lists every skill folder in `skills` and keeps `"commands": []`, so a new skill needs an entry there.
+- **MCP config.** `.mcp.json` registers only the hosted server, `https://mcp.pipefy.com/mcp`, with type `http`. It carries the client id twice, as `auth.CLIENT_ID` and as `oauth.clientId`, because Cursor reads the first key and Claude Code reads the second.
+- **Directory limits.** The folder holds at most 200 tracked files, no file over 256 KiB unless it is an image, and no symbolic links. The Claude directory validation times out on large plugin folders: on the portal, folders of about 500 files or more timed out, and folders of 62 to 154 files passed.
+- **Versions.** Change versions only with `scripts/bump_version.py`. An installed plugin updates only when its version changes.
+- **License.** The `license` field in `plugin.json` meets the directory requirement, and `README.md` ends with the license and trademark notice. The folder has no copies of `LICENSE` or `NOTICE`.
+
+Before you open a pull request that changes the plugin folder, run these checks:
+
+```bash
+python3 .github/workflows/scripts/lint_plugin_packaging.py
+uv run python .github/workflows/scripts/lint_skill_refs.py
+uv run python .github/workflows/scripts/lint_skill_frontmatter.py
+claude plugin validate plugins/pipefy
+claude --plugin-dir plugins/pipefy plugin details pipefy   # lists every skill and command
+npx skills add . --list                                    # lists every skill and nothing else
+```
 
 ---
 
@@ -23,7 +48,7 @@ plugins/
           mcp.md          ← MCP controls, profiles, response envelopes
           cli.md          ← shipped commands and flags
         COMPLIANCE.md     ← required for regulated-domain / blueprint skills
-      README.md           ← catalog index
+    README.md             ← plugin README and skill catalog
 ```
 
 The copyable starter lives at [`.github/skill-template/pipefy-skill-template/`](../.github/skill-template/pipefy-skill-template/), outside this catalog.
