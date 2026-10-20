@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Claude Code and Cursor plugin, folder layout**: the plugin moved from the repository root to `plugins/pipefy/`, and both marketplaces point at it with `"source": "./plugins/pipefy"`. With the plugin at the root, every tracked file counted as a plugin file, and the Claude plugin directory timed out ("The directory service didn't answer in time") while it validated the repository. The plugin folder now holds 59 files, and `lint_plugin_packaging.py` keeps it at 200 files or fewer. Existing installs move to the new layout when they update to the next version. Opening the repository no longer registers the hosted MCP server at project scope, because `.mcp.json` now lives in the plugin folder.
+- **Skills, folder layout**: each skill moved from `skills/<domain>/<skill>/` to `plugins/pipefy/skills/<skill>/`. `npx skills add pipefy/ai-toolkit` now installs exactly the 18 skills; with the domain folders, it also installed the skill template from `.github/skill-template/`. Installed skills keep working, and `npx skills update` finds them at the new path. The skill catalog is now the plugin README, `plugins/pipefy/README.md`, and the authoring guide is `plugins/AGENTS.md`.
+
 ### Added
 
 - **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, count and filter the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, parsed with the same rules as MCP (a bad key or value exits 2), and `--first` 1 to 50 with `--after`. (#791)
