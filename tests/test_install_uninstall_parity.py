@@ -441,10 +441,30 @@ def test_the_onboarding_skill_verifies_without_a_repository_checkout():
             assert _UNINSTALL_GUIDE_URL in line, line
 
 
-def test_the_onboarding_skill_does_not_pipe_a_download_into_a_shell():
-    """The Claude plugin directory flags a fetch piped into sh as an install-time risk."""
-    for path in _ONBOARDING.parent.rglob("*.md"):
-        assert "| sh" not in path.read_text(encoding="utf-8"), path
+_DOWNLOAD_INTO_A_SHELL = re.compile(r"\|\s*(ba|z|da)?sh\b|sh -c \"\$\((curl|wget)\b")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "curl -LsSf https://example.com/x.sh | sh -s -- --scan",
+        "curl -LsSf https://example.com/x.sh |bash",
+        'sh -c "$(curl -fsSL https://example.com/x.sh)"',
+    ],
+)
+def test_the_download_pattern_matches_each_shell_spelling(text):
+    assert _DOWNLOAD_INTO_A_SHELL.search(text)
+
+
+def test_the_download_pattern_ignores_a_table_cell():
+    assert not _DOWNLOAD_INTO_A_SHELL.search("| short names | yes |")
+
+
+def test_the_plugin_does_not_pipe_a_download_into_a_shell():
+    """The Claude plugin directory flags a fetch piped into a shell as an install-time risk."""
+    plugin = _ONBOARDING.parents[2]
+    for path in plugin.rglob("*.md"):
+        assert not _DOWNLOAD_INTO_A_SHELL.search(path.read_text(encoding="utf-8")), path
 
 
 # ------------------------------------------------------------- the pipe drain
