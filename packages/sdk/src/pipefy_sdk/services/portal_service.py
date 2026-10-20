@@ -14,7 +14,11 @@ from pipefy_sdk.exceptions import (
     PortalPermissionError,
 )
 from pipefy_sdk.graphql_executor import GraphQLExecutor, PipefyGraphQLError
-from pipefy_sdk.graphql_problem import GraphQLProblemKind, classify_exception
+from pipefy_sdk.graphql_problem import (
+    HTML_VALIDATION_FAILED_CODE,
+    GraphQLProblemKind,
+    classify_exception,
+)
 from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     CreatePortalInput,
@@ -86,42 +90,33 @@ def _map_portal_permission_error(
     return None
 
 
-_HTML_VALIDATION_FAILED_CODE = "HTML_VALIDATION_FAILED"
-
-
-def _optional_text(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _parse_html_validation_error(
+def _map_html_validation_error(
     exc: PipefyGraphQLError,
 ) -> HtmlValidationError | None:
-    """Return the violations of an ``HTML_VALIDATION_FAILED`` error; else ``None``.
+    """Return an ``HtmlValidationError`` for an ``HTML_VALIDATION_FAILED`` error; else ``None``.
 
-    The API puts each violation on ``extensions.violations`` of the first error, as
-    ``code``, ``message``, ``selector`` and ``attribute``. Entries that are not
-    objects are skipped; an error with no usable violation stays a plain
-    ``PipefyGraphQLError``, whose message still says what failed.
+    The API puts each violation on ``extensions.violations`` of the first error.
+    Entries that cannot form an ``HtmlViolation`` are skipped; an error with none
+    left stays a plain ``PipefyGraphQLError``, whose message still says what failed.
     """
-    problem = classify_exception(exc)
-    if problem is None or problem.code is None:
+    first = exc.errors[0] if exc.errors else None
+    if not isinstance(first, dict):
         return None
-    if problem.code.strip().upper() != _HTML_VALIDATION_FAILED_CODE:
+    extensions = first.get("extensions")
+    if not isinstance(extensions, dict):
         return None
-    extensions = exc.errors[0].get("extensions") or {}
+    code = extensions.get("code")
+    if not isinstance(code, str) or code.strip().upper() != HTML_VALIDATION_FAILED_CODE:
+        return None
     raw_violations = extensions.get("violations")
     if not isinstance(raw_violations, list):
         return None
-    violations = tuple(
-        HtmlViolation(
-            code=str(raw.get("code") or ""),
-            message=str(raw.get("message") or ""),
-            selector=_optional_text(raw.get("selector")),
-            attribute=_optional_text(raw.get("attribute")),
-        )
+    parsed = (
+        HtmlViolation.from_extension(raw)
         for raw in raw_violations
         if isinstance(raw, dict)
     )
+    violations = tuple(violation for violation in parsed if violation is not None)
     return HtmlValidationError(violations) if violations else None
 
 
@@ -751,7 +746,7 @@ class PortalService:
             {"input": variables},
         )
 
-    async def write_interface_html(
+    async def write_html_document(
         self, *, page_id: str, element_id: str, content: str
     ) -> dict[str, Any]:
         """Write the HTML document of an HTML interface's ``customCode`` element.
@@ -781,7 +776,7 @@ class PortalService:
                 },
             )
         except PipefyGraphQLError as exc:
-            validation_error = _parse_html_validation_error(exc)
+            validation_error = _map_html_validation_error(exc)
             if validation_error is not None:
                 raise validation_error from exc
             raise

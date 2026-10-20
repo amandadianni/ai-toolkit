@@ -204,7 +204,7 @@ DELETE_ELEMENT_MUTATION = gql(
 
 WRITE_HTML_DOCUMENT_MUTATION = gql(
     """
-    mutation WriteInterfaceHtml($input: InterfacePageElementWriteHtmlDocumentInput!) {
+    mutation WriteHtmlDocument($input: InterfacePageElementWriteHtmlDocumentInput!) {
         writeHtmlDocument(input: $input) {
             success
         }

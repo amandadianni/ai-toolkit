@@ -2104,7 +2104,7 @@ class PipefyClient:
         """
         return await self._portal_service.get_portal(portal_uuid)
 
-    async def write_interface_html(
+    async def write_html_document(
         self, *, page_id: str, element_id: str, content: str
     ) -> dict[str, Any]:
         """Write and publish the HTML of an HTML interface's ``customCode`` element.
@@ -2117,8 +2117,9 @@ class PipefyClient:
         Raises:
             HtmlValidationError: The HTML broke the API's HTML rules; nothing was
                 stored, and ``violations`` lists every rule it broke.
+            PortalPermissionError: The caller cannot update the interface.
         """
-        return await self._portal_service.write_interface_html(
+        return await self._portal_service.write_html_document(
             page_id=page_id, element_id=element_id, content=content
         )
 

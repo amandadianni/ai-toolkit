@@ -1907,82 +1907,93 @@ def test_get_portal_selects_page_layout():
 
 _SCRIPT_VIOLATION = {
     "code": "SCRIPT_FORBIDDEN",
-    "message": "Scripts are not allowed on this page.",
+    "message": "Remove the script tag.",
     "selector": "script",
     "attribute": None,
 }
 
 _ONCLICK_VIOLATION = {
     "code": "EVENT_HANDLER_FORBIDDEN",
-    "message": "Event handler attributes are not allowed.",
+    "message": "Remove the onclick handler.",
     "selector": "button",
     "attribute": "onclick",
 }
 
+_WRITE_HTML_DOCUMENT_VARIABLES = {
+    "input": {"page_id": "page-1", "element_id": "el-1", "content": "<h1>Sales</h1>"}
+}
 
-def _html_validation_failed_error(violations: list[dict]) -> PipefyGraphQLError:
+
+def _html_validation_failed_error(
+    violations: object, *, code: str = "HTML_VALIDATION_FAILED"
+) -> PipefyGraphQLError:
     return PipefyGraphQLError(
         [
             {
-                "message": " ".join(v["message"] for v in violations),
-                "extensions": {
-                    "code": "HTML_VALIDATION_FAILED",
-                    "violations": violations,
-                },
+                "message": "Invalid HTML",
+                "extensions": {"code": code, "violations": violations},
             }
         ]
     )
 
 
+async def _write_sales_heading(service: PortalService) -> dict:
+    return await service.write_html_document(
+        page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
+    )
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_write_interface_html_sends_page_element_and_content() -> None:
+async def test_write_html_document_returns_the_mutation_result() -> None:
+    service, _interfaces, _internal = _make_portal_service_with_clients(
+        interfaces_return={"writeHtmlDocument": {"success": True}},
+    )
+
+    result = await _write_sales_heading(service)
+
+    assert result == {"writeHtmlDocument": {"success": True}}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_html_document_sends_page_element_and_content_once() -> None:
     """writeHtmlDocument takes snake_case page_id and element_id under input."""
     service, interfaces, _internal = _make_portal_service_with_clients(
         interfaces_return={"writeHtmlDocument": {"success": True}},
     )
 
-    result = await service.write_interface_html(
-        page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
-    )
+    await _write_sales_heading(service)
 
-    assert result == {"writeHtmlDocument": {"success": True}}
-    query_used, variables = interfaces.execute_query.call_args[0]
-    assert query_used is WRITE_HTML_DOCUMENT_MUTATION
-    assert variables == {
-        "input": {
-            "page_id": "page-1",
-            "element_id": "el-1",
-            "content": "<h1>Sales</h1>",
-        }
-    }
+    interfaces.execute_query.assert_awaited_once_with(
+        WRITE_HTML_DOCUMENT_MUTATION, _WRITE_HTML_DOCUMENT_VARIABLES
+    )
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_write_interface_html_raises_every_violation() -> None:
+@pytest.mark.parametrize("code", ["HTML_VALIDATION_FAILED", " html_validation_failed "])
+async def test_write_html_document_raises_every_violation(code: str) -> None:
     """HTML_VALIDATION_FAILED becomes HtmlValidationError carrying each violation."""
     graphql_error = _html_validation_failed_error(
-        [_SCRIPT_VIOLATION, _ONCLICK_VIOLATION]
+        [_SCRIPT_VIOLATION, _ONCLICK_VIOLATION], code=code
     )
     service, interfaces, _internal = _make_portal_service_with_clients()
     interfaces.execute_query.side_effect = graphql_error
 
     with pytest.raises(HtmlValidationError) as exc_info:
-        await service.write_interface_html(
-            page_id="page-1", element_id="el-1", content="<script></script>"
-        )
+        await _write_sales_heading(service)
 
     assert exc_info.value.violations == (
         HtmlViolation(
             code="SCRIPT_FORBIDDEN",
-            message="Scripts are not allowed on this page.",
+            message="Remove the script tag.",
             selector="script",
             attribute=None,
         ),
         HtmlViolation(
             code="EVENT_HANDLER_FORBIDDEN",
-            message="Event handler attributes are not allowed.",
+            message="Remove the onclick handler.",
             selector="button",
             attribute="onclick",
         ),
@@ -1992,36 +2003,90 @@ async def test_write_interface_html_raises_every_violation() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_write_interface_html_permission_denied_raises_portal_permission_error() -> (
+async def test_write_html_document_skips_entries_that_are_not_violations() -> None:
+    """Non-objects and entries without a code or message are dropped; blanks are absent."""
+    service, interfaces, _internal = _make_portal_service_with_clients()
+    interfaces.execute_query.side_effect = _html_validation_failed_error(
+        [
+            "script",
+            {"message": "Missing its code."},
+            {"code": "NO_MESSAGE"},
+            {
+                "code": "CONTENT_TOO_LARGE",
+                "message": "The document is too large.",
+                "selector": " ",
+                "attribute": "",
+            },
+        ]
+    )
+
+    with pytest.raises(HtmlValidationError) as exc_info:
+        await _write_sales_heading(service)
+
+    assert exc_info.value.violations == (
+        HtmlViolation(
+            code="CONTENT_TOO_LARGE",
+            message="The document is too large.",
+            selector=None,
+            attribute=None,
+        ),
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_write_html_document_permission_denied_raises_portal_permission_error() -> (
     None
 ):
     service, interfaces, _internal = _make_portal_service_with_clients()
     interfaces.execute_query.side_effect = _PERMISSION_DENIED_ERROR
 
     with pytest.raises(PortalPermissionError):
-        await service.write_interface_html(
-            page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
-        )
+        await _write_sales_heading(service)
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_write_interface_html_reraises_other_graphql_errors() -> None:
-    """A feature gate or a missing element keeps the API's own error."""
-    feature_blocked = PipefyGraphQLError(
-        [
-            {
-                "message": "AI-generated interfaces are not enabled.",
-                "extensions": {"code": "FEATURE_BLOCKED"},
-            }
-        ]
-    )
+@pytest.mark.parametrize(
+    "graphql_error",
+    [
+        PipefyGraphQLError(
+            [
+                {
+                    "message": "AI-generated interfaces are not enabled.",
+                    "extensions": {"code": "FEATURE_BLOCKED"},
+                }
+            ]
+        ),
+        PipefyGraphQLError([{"message": "Element el-1 does not belong to page-1."}]),
+        _html_validation_failed_error([_SCRIPT_VIOLATION], code="RECORD_INVALID"),
+        PipefyGraphQLError(
+            [
+                {
+                    "message": "Invalid HTML",
+                    "extensions": {"code": "HTML_VALIDATION_FAILED"},
+                }
+            ]
+        ),
+        _html_validation_failed_error("script"),
+        _html_validation_failed_error(["script", None, {"code": "NO_MESSAGE"}]),
+    ],
+    ids=[
+        "other-code",
+        "no-code",
+        "other-code-with-violations",
+        "no-violations",
+        "violations-not-a-list",
+        "no-usable-violation",
+    ],
+)
+async def test_write_html_document_keeps_the_api_error_without_usable_violations(
+    graphql_error: PipefyGraphQLError,
+) -> None:
     service, interfaces, _internal = _make_portal_service_with_clients()
-    interfaces.execute_query.side_effect = feature_blocked
+    interfaces.execute_query.side_effect = graphql_error
 
     with pytest.raises(PipefyGraphQLError) as exc_info:
-        await service.write_interface_html(
-            page_id="page-1", element_id="el-1", content="<h1>Sales</h1>"
-        )
+        await _write_sales_heading(service)
 
-    assert exc_info.value is feature_blocked
+    assert exc_info.value is graphql_error
