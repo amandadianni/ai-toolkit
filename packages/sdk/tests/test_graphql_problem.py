@@ -31,6 +31,33 @@ def test_feature_code_is_classified_as_feature_not_enabled(code: str) -> None:
     )
 
 
+def test_html_validation_failed_is_classified_as_invalid_arguments() -> None:
+    problem = classify_graphql_error_dicts(
+        [
+            {
+                "message": "Scripts are not allowed on this page.",
+                "extensions": {
+                    "code": "HTML_VALIDATION_FAILED",
+                    "violations": [
+                        {
+                            "code": "SCRIPT_FORBIDDEN",
+                            "message": "Scripts are not allowed on this page.",
+                            "selector": "script",
+                            "attribute": None,
+                        }
+                    ],
+                },
+            }
+        ]
+    )
+
+    assert problem == GraphQLProblem(
+        kind=GraphQLProblemKind.INVALID_ARGUMENTS,
+        message="Scripts are not allowed on this page.",
+        code="HTML_VALIDATION_FAILED",
+    )
+
+
 def test_padded_lowercase_feature_blocked_is_classified_with_code_verbatim() -> None:
     problem = classify_graphql_error_dicts(
         [
