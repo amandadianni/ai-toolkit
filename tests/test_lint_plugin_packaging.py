@@ -637,6 +637,45 @@ def test_non_utf8_manifest_is_named(tmp_path):
     assert any("not valid UTF-8" in err for err in errors), errors
 
 
+def _plugin_files(count, **overrides):
+    files = [
+        _lint.PluginFile(path=f"skills/s{index}/SKILL.md", size=10, is_symlink=False)
+        for index in range(count)
+    ]
+    return files + [
+        _lint.PluginFile(path=path, size=size, is_symlink=link)
+        for path, (size, link) in overrides.items()
+    ]
+
+
+def test_plugin_folder_within_limits_passes():
+    assert _lint.lint_directory_limits(_plugin_files(_lint.MAX_PLUGIN_FILES)) == []
+
+
+def test_plugin_folder_over_the_file_cap_is_rejected():
+    errors = _lint.lint_directory_limits(_plugin_files(_lint.MAX_PLUGIN_FILES + 1))
+    assert any(f"has {_lint.MAX_PLUGIN_FILES + 1} tracked files" in e for e in errors)
+
+
+def test_large_text_file_is_rejected():
+    limit = _lint.MAX_NON_IMAGE_BYTES
+    errors = _lint.lint_directory_limits(
+        _plugin_files(1, **{"README.md": (limit + 1, False)})
+    )
+    assert any("README.md" in e and f"{limit + 1} bytes" in e for e in errors), errors
+
+
+def test_large_image_is_allowed():
+    big = _lint.MAX_NON_IMAGE_BYTES + 1
+    files = _plugin_files(1, **{"assets/logo.PNG": (big, False)})
+    assert _lint.lint_directory_limits(files) == []
+
+
+def test_symbolic_link_is_rejected():
+    errors = _lint.lint_directory_limits(_plugin_files(1, **{"LICENSE": (10, True)}))
+    assert any("LICENSE is a symbolic link" in e for e in errors), errors
+
+
 def test_main_exits_zero_on_this_repository():
     assert _lint.main() == 0
 

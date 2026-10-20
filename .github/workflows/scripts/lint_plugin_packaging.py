@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PLUGIN_DIR = Path("plugins/pipefy")
@@ -37,6 +37,20 @@ REQUIRED_MANIFEST_MCP_SERVERS = "./.mcp.json"
 FORBIDDEN_ROOT_MCP_JSON = "mcp.json"
 REQUIRED_DISPLAY_NAME = "Pipefy"
 REQUIRED_MARKETPLACE_NAME = "pipefy"
+# The Claude directory validation times out on large plugin folders: on the
+# portal, folders of about 500 files or more timed out and folders of 62 to 154
+# files passed. The cap keeps a wide margin below that. The size and symbolic
+# link rules are the directory's own pre-submission limits.
+MAX_PLUGIN_FILES = 200
+MAX_NON_IMAGE_BYTES = 256 * 1024
+IMAGE_SUFFIXES = frozenset({".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"})
+GIT_SYMLINK_MODE = "120000"
+
+
+class PluginFile(NamedTuple):
+    path: str
+    size: int
+    is_symlink: bool
 
 
 def _rel(root: Path, path: Path) -> Path:
@@ -87,6 +101,59 @@ def _tracked_skill_md_paths(root: Path) -> list[str] | str:
             f"(cwd={root}, pathspec='skills/**/SKILL.md'): {detail}"
         )
     return proc.stdout.splitlines()
+
+
+def _tracked_plugin_files(plugin: Path) -> list[PluginFile] | str:
+    proc = subprocess.run(
+        ["git", "ls-files", "-s", "--", "."],
+        cwd=plugin,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or proc.stdout.strip() or "no output"
+        return (
+            f"git ls-files failed with exit {proc.returncode} "
+            f"(cwd={plugin}, pathspec='.'): {detail}"
+        )
+    files: list[PluginFile] = []
+    for line in proc.stdout.splitlines():
+        meta, path = line.split("\t", 1)
+        mode = meta.split(" ", 1)[0]
+        files.append(
+            PluginFile(
+                path=path,
+                size=(plugin / path).lstat().st_size,
+                is_symlink=mode == GIT_SYMLINK_MODE,
+            )
+        )
+    return files
+
+
+def lint_directory_limits(files: list[PluginFile]) -> list[str]:
+    """Return errors for a plugin folder outside the Claude directory limits."""
+    errors: list[str] = []
+    if len(files) > MAX_PLUGIN_FILES:
+        errors.append(
+            f"{PLUGIN_DIR} has {len(files)} tracked files, expected at most "
+            f"{MAX_PLUGIN_FILES} so the Claude directory validation does not "
+            "time out"
+        )
+    for file in files:
+        if file.is_symlink:
+            errors.append(
+                f"{PLUGIN_DIR / file.path} is a symbolic link; the Claude "
+                "directory rejects symbolic links in the plugin folder"
+            )
+        elif (
+            Path(file.path).suffix.lower() not in IMAGE_SUFFIXES
+            and file.size > MAX_NON_IMAGE_BYTES
+        ):
+            errors.append(
+                f"{PLUGIN_DIR / file.path} is {file.size} bytes, expected at "
+                f"most {MAX_NON_IMAGE_BYTES} for a file that is not an image"
+            )
+    return errors
 
 
 def _path_field_error(
@@ -463,6 +530,8 @@ def main() -> int:
         return 1
 
     errors = collect_errors(REPO_ROOT, listing)
+    files = _tracked_plugin_files(REPO_ROOT / PLUGIN_DIR)
+    errors.extend([files] if isinstance(files, str) else lint_directory_limits(files))
     if errors:
         print("Plugin packaging FAILED:", file=sys.stderr)
         for err in errors:
