@@ -239,7 +239,8 @@ def card_records(
     on date-time attributes (CREATED_AT, FINISHED_AT) and as a bare date
     (2026-07-03) on a date field. With --where or
     --search-term, paging stops at 10,000 cards. Page with --after set to
-    pageInfo.endCursor until hasNextPage is false.
+    pageInfo.endCursor until hasNextPage is false. For a count, pass --first 1
+    and read totalCount.
     """
     where_raw = parse_json_value(where_json, "--where")
     order_by_raw = parse_json_value(order_by_json, "--order-by")
