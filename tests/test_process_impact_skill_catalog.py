@@ -6,12 +6,10 @@ import re
 from pathlib import Path
 
 _SKILLS = Path(__file__).resolve().parents[1] / "skills"
-_SKILL_MD = _SKILLS / "process-impact" / "pipefy-process-impact" / "SKILL.md"
-_DESIGN_MD = _SKILLS / "process-design" / "pipefy-process-design" / "SKILL.md"
-_INTELLIGENCE_MD = (
-    _SKILLS / "process-intelligence" / "pipefy-process-intelligence" / "SKILL.md"
-)
-_BUILDING_MD = _SKILLS / "building" / "pipefy-building" / "SKILL.md"
+_SKILL_MD = _SKILLS / "pipefy-process-impact" / "SKILL.md"
+_DESIGN_MD = _SKILLS / "pipefy-process-design" / "SKILL.md"
+_INTELLIGENCE_MD = _SKILLS / "pipefy-process-intelligence" / "SKILL.md"
+_BUILDING_MD = _SKILLS / "pipefy-building" / "SKILL.md"
 _CATALOG_MD = _SKILLS / "README.md"
 
 _IMPACT_GUIDANCE = (

@@ -14,21 +14,19 @@ A skill is a directory with a `SKILL.md` entrypoint describing a Pipefy workflow
 
 ```
 skills/
-  <domain>/
-    <skill-name>/
-      SKILL.md          ← the skill file
-      references/       ← when the workflow has surface-specific instructions
-        mcp.md          ← MCP controls, profiles, response envelopes
-        cli.md          ← shipped commands and flags
-      COMPLIANCE.md     ← required for regulated-domain / blueprint skills
-  AGENTS.md             ← this file
-  README.md             ← catalog index
+  <skill-name>/
+    SKILL.md          ← the skill file
+    references/       ← when the workflow has surface-specific instructions
+      mcp.md          ← MCP controls, profiles, response envelopes
+      cli.md          ← shipped commands and flags
+    COMPLIANCE.md     ← required for regulated-domain / blueprint skills
+  AGENTS.md           ← this file
+  README.md           ← catalog index
 ```
 
 The copyable starter lives at [`.github/skill-template/pipefy-skill-template/`](../.github/skill-template/pipefy-skill-template/), outside this catalog.
 
-**Domain folders** match the MCP tool surface:
-`pipes-and-cards`, `database-tables`, `relations`, `reports`, `automations`, `ipaas`, `ai-agents`, `observability`, `members-email-webhooks`, `portal-setup`, `attachments`, `introspection`, `building`, `process-design`, `process-impact`, `process-intelligence`, `api-troubleshoot`, `onboarding`
+Each skill folder sits directly under `skills/`, with no domain folder in between. `npx skills add` searches a plugin's `skills/` folder only one level deep; with a deeper layout it falls back to a scan of the whole repository and also installs the skill template.
 
 Regulated domains (`legal`, `human-resources`, `finance`, `compliance`, or any skill involving decisions about natural persons) require substantive Legal review and a filled `COMPLIANCE.md` (start from [`docs/compliance/COMPLIANCE.template.md`](../docs/compliance/COMPLIANCE.template.md)). See [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
@@ -97,7 +95,6 @@ Common errors and how to recover.
 ## Naming conventions
 
 - **Skill names:** kebab-case, descriptive, start with `pipefy-` (`pipefy-pipes-and-cards`, `pipefy-process-design`).
-- **Domain folders:** kebab-case, plural where natural (`pipes-and-cards`, `automations`).
 - **Stable IDs:** once a skill is published, renames require a CHANGELOG note so agent prompts using old names still resolve.
 
 ---

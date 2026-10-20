@@ -11,7 +11,7 @@ _SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
 
 def test_references_resolve_in_flat_installation(tmp_path):
-    entrypoints = sorted(_SKILLS.glob("*/*/SKILL.md"))
+    entrypoints = sorted(_SKILLS.glob("*/SKILL.md"))
     assert entrypoints
     for entrypoint in entrypoints:
         shutil.copytree(entrypoint.parent, tmp_path / entrypoint.parent.name)

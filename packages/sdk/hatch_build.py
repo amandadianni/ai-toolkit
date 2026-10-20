@@ -15,7 +15,7 @@ class CustomBuildHook(BuildHookInterface):
             catalog = root / "skills"
 
         skills = sorted(
-            path for path in catalog.glob("*/*") if (path / "SKILL.md").is_file()
+            path for path in catalog.glob("*") if (path / "SKILL.md").is_file()
         )
         if not skills:
             raise RuntimeError("Skill catalog is missing from the SDK build source")
