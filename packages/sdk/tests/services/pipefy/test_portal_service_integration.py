@@ -1,7 +1,9 @@
 """Live portal read scenarios for PortalService.
 
 Requires valid Pipefy credentials in repo-root **``.env``** (``PIPEFY_*``). All tests
-require ``PIPEFY_PORTAL_ORG_UUID`` (org where the token has ``manage_portals``).
+require ``PIPEFY_PORTAL_ORG_UUID`` (org where the token has ``manage_portals``), except
+the HTML interface write test, which writes only to the disposable interface named by
+``PIPEFY_HTML_INTERFACE_UUID``.
 Unit tests use fictional ids in ``_shared.fixture_ids`` — never commit real org ids
 into test source. See ``docs/config.md`` and ``.env.example``.
 
@@ -59,6 +61,17 @@ def _require_portal_org_uuid() -> str:
     if org_uuid is None:
         pytest.skip(_PORTAL_ORG_SKIP)
     return org_uuid
+
+
+def _require_disposable_html_interface_uuid() -> str:
+    """The HTML interface live write tests may write to; skip when unset."""
+    interface_uuid = os.environ.get("PIPEFY_HTML_INTERFACE_UUID", "").strip()
+    if not interface_uuid:
+        pytest.skip(
+            "Set PIPEFY_HTML_INTERFACE_UUID to a disposable HTML interface the token "
+            "can edit."
+        )
+    return interface_uuid
 
 
 def _first_forms_element_id(portal_detail: dict) -> str | None:
@@ -154,12 +167,8 @@ async def test_live_write_html_document_rejects_a_script_and_stores_nothing(
     live_portal_service: PortalService,
 ) -> None:
     """Smoke: invalid HTML raises its violations and leaves the live document as it was."""
-    org_uuid = _require_portal_org_uuid()
+    interface_uuid = _require_disposable_html_interface_uuid()
 
-    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
-    if not interfaces:
-        pytest.skip(f"No HTML interface found for org {org_uuid}")
-    interface_uuid = interfaces[0]["uuid"]
     before = await live_portal_service.get_html_interface(interface_uuid)
     target = next(
         (
@@ -171,7 +180,7 @@ async def test_live_write_html_document_rejects_a_script_and_stores_nothing(
         None,
     )
     if target is None:
-        pytest.skip("First HTML interface has no customCode element")
+        pytest.skip(f"HTML interface {interface_uuid} has no customCode element")
     page_id, element = target
 
     try:
@@ -183,15 +192,7 @@ async def test_live_write_html_document_rejects_a_script_and_stores_nothing(
     except PortalPermissionError:
         pytest.skip(f"Token cannot update HTML interface {interface_uuid}")
     else:
-        if element["htmlDocument"] is not None:
-            await live_portal_service.write_html_document(
-                page_id=page_id,
-                element_id=element["id"],
-                content=element["htmlDocument"]["content"],
-            )
-        pytest.fail(
-            "The API stored <script></script>; the previous document was restored if there was one"
-        )
+        pytest.fail("The API stored <script></script> instead of rejecting it")
 
     assert "SCRIPT_FORBIDDEN" in violation_codes
     after = await live_portal_service.get_html_interface(interface_uuid)
