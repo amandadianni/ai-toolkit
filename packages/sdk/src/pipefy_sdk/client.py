@@ -2147,6 +2147,8 @@ class PipefyClient:
             HtmlValidationError: The HTML broke the API's HTML rules; nothing was
                 stored, and ``violations`` lists every rule it broke.
             PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: No page has this id, or the element is not on the
+                page; the API answers a missing target with an error.
         """
         return await self._portal_service.write_html_document(
             page_id=page_id, element_id=element_id, content=content

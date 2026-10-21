@@ -455,6 +455,43 @@ class PortalService:
             raise ValueError(msg)
         return _normalize_html_interface_detail(interface)
 
+    async def write_html_document(
+        self, *, page_id: str, element_id: str, content: str
+    ) -> dict[str, Any]:
+        """Write and publish the HTML of an HTML interface's ``customCode`` element.
+
+        Writing publishes: the new document goes live as soon as it is stored.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            content: The whole HTML document; it replaces the live one.
+
+        Raises:
+            HtmlValidationError: The HTML broke the API's HTML rules; nothing was
+                stored, and ``violations`` lists every rule it broke.
+            PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: No page has this id, or the element is not on the
+                page; the API answers a missing target with an error.
+        """
+        try:
+            return await _execute_query_with_portal_errors(
+                self.execute_interfaces_query,
+                WRITE_HTML_DOCUMENT_MUTATION,
+                {
+                    "input": {
+                        "page_id": page_id,
+                        "element_id": element_id,
+                        "content": content,
+                    }
+                },
+            )
+        except PipefyGraphQLError as exc:
+            validation_error = _map_html_validation_error(exc)
+            if validation_error is not None:
+                raise validation_error from exc
+            raise
+
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).
 
@@ -831,41 +868,6 @@ class PortalService:
             DELETE_ELEMENT_MUTATION,
             {"input": variables},
         )
-
-    async def write_html_document(
-        self, *, page_id: str, element_id: str, content: str
-    ) -> dict[str, Any]:
-        """Write the HTML document of an HTML interface's ``customCode`` element.
-
-        Writing publishes: the new document goes live as soon as it is stored.
-
-        Args:
-            page_id: Page holding the element.
-            element_id: The page's ``customCode`` element.
-            content: The whole HTML document; it replaces the live one.
-
-        Raises:
-            HtmlValidationError: The HTML broke the API's HTML rules; nothing was
-                stored, and ``violations`` lists every rule it broke.
-            PortalPermissionError: The caller cannot update the interface.
-        """
-        try:
-            return await _execute_query_with_portal_errors(
-                self.execute_interfaces_query,
-                WRITE_HTML_DOCUMENT_MUTATION,
-                {
-                    "input": {
-                        "page_id": page_id,
-                        "element_id": element_id,
-                        "content": content,
-                    }
-                },
-            )
-        except PipefyGraphQLError as exc:
-            validation_error = _map_html_validation_error(exc)
-            if validation_error is not None:
-                raise validation_error from exc
-            raise
 
     async def duplicate_portal_element(
         self,
