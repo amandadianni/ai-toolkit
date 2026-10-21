@@ -54,7 +54,7 @@ Tables, records (rows), schema columns (table fields), and attachments for Pipef
 | `find_records` | Yes | Filter records by `field_id` and `field_value` — preferred over paginating `get_table_records`. |
 | `get_table_record` | Yes | Single record with all populated field values. |
 | `create_table_record` | No | Add a row to a table. |
-| `update_table_record` | No | Update a row's `title`, `due_date` or `status_id`. It accepts no other keys. |
+| `update_table_record` | No | Update a row's `title`, `due_date` or `status_id`. Any other key is dropped without an error. |
 | `set_table_record_field_value` | No | Set one field value on a row. Use it for every table field. |
 | `delete_table_record` | No | **Destructive; review and approve first.** |
 
@@ -102,6 +102,7 @@ Never delete without first reviewing the affected data.
 - **`get_table_record` / `get_table_records` omit empty fields.** Records only return populated fields, so you cannot tell "field unset" from "field doesn't exist" without calling `get_table` for the full schema.
 - **`create_table_record` title silently overridden.** When the first table field is a start-form-style label column, Pipefy uses that field's value as the record `title`, ignoring the `title` parameter. Don't rely on `title` if the first field auto-populates a label-like column.
 - **`create_table_field` rejects type:** call `introspect_type(type_name="CreateTableFieldInput")` for valid field types.
+- **`update_table_record` ignores a custom field without an error:** it sends only `title`, `due_date` and `status_id`, and drops every other key. It fails only when none of the three is present. Set each custom field with `set_table_record_field_value`, then read the record back with `get_table_record`.
 - **`find_records` returns empty:** check that `field_id` matches a field's **ID** (not label) from `get_table`.
 - **Pagination cursor expired:** re-fetch from the beginning; cursors are short-lived.
 
