@@ -2160,9 +2160,10 @@ class PipefyClient:
         Returns the allowed tags and attributes, every forbidden tag/attribute/CSS
         construct with its violation code, the full error-code list, the
         filter-tree format (a worked example plus the operators each field type
-        supports), content-size and nesting limits, and a ``design_system`` slot
-        reserved for a future per-org design system (``None`` today). The rules
-        are the same for every organization.
+        supports), content-size and nesting limits, and a ``design_system``
+        snapshot: a component catalog (tokens, icons and components with usage
+        examples) to style generated content consistently. The rules are the
+        same for every organization.
         """
         return await self._portal_service.get_interface_html_guidelines()
 

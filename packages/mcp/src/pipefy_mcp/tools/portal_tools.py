@@ -141,9 +141,10 @@ class PortalTools:
             allowed tag and attribute, every forbidden tag/attribute/CSS construct
             with its violation code, the full error-code list, the filter-tree
             format (a worked example plus the operators each field type supports),
-            content-size and nesting limits, and a ``designSystem`` slot reserved
-            for a future per-org design system (``null`` today). The rules are the
-            same for every organization. The response includes both ``result``
+            content-size and nesting limits, and a ``designSystem`` snapshot: a
+            component catalog (tokens, icons and components with usage examples)
+            to style generated content consistently. The rules are the same for
+            every organization. The response includes both ``result``
             (pretty-printed JSON string) and ``data`` (parsed dict) for convenience.
             """
             client = get_pipefy_client(ctx)
