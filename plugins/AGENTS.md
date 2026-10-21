@@ -1,6 +1,32 @@
-# Skills — Authoring Guide
+# Plugin and skill authoring guide
 
-This document defines how to author, name, and maintain skills in the `ai-toolkit` monorepo.
+This guide defines how to maintain the Pipefy plugin in `plugins/pipefy/` and how to author, name and maintain its skills.
+
+---
+
+## The plugin folder
+
+`plugins/pipefy/` is the plugin. The Claude Code and Cursor marketplaces at the repository root (`.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json`) point at it with `"source": "./plugins/pipefy"`, and users install only this folder. Put a file here only if the plugin loads it or the directory listing shows it: the two plugin manifests, `.mcp.json`, `assets/`, `commands/`, `skills/` and `README.md`. Everything for contributors, like this guide, stays outside.
+
+`lint_plugin_packaging.py` checks every rule in this section. Run it after you stage your files, because it reads tracked files through `git ls-files`.
+
+- **Manifests.** `.claude-plugin/plugin.json` has no `skills` field: Claude Code loads every folder under `skills/`. `.cursor-plugin/plugin.json` lists every skill folder in `skills` and keeps `"commands": []`, so a new skill needs an entry there.
+- **MCP config.** `.mcp.json` registers only the hosted server, `https://mcp.pipefy.com/mcp`, with type `http`. It carries the client id twice, as `auth.CLIENT_ID` and as `oauth.clientId`, because Cursor reads the first key and Claude Code reads the second.
+- **Directory limits.** The folder holds at most 200 tracked files, no file over 256 KiB unless it is an image, and no symbolic links. The Claude directory validation times out on large plugin folders: on the portal, folders of about 500 files or more timed out, and folders of 62 to 154 files passed.
+- **No download piped into a shell.** No file in the folder writes a command such as `curl ... | sh`, even as an instruction for the agent: the directory flags it as an install-time risk. Link to the doc that holds the command instead, the way the setup skill links to `docs/uninstall.md`.
+- **Versions.** Change versions only with `scripts/bump_version.py`. An installed plugin updates only when its version changes.
+- **License.** The `license` field in `plugin.json` meets the directory requirement, and `README.md` ends with the license and trademark notice. The folder has no copies of `LICENSE` or `NOTICE`.
+
+Before you open a pull request that changes the plugin folder, run these checks:
+
+```bash
+python3 .github/workflows/scripts/lint_plugin_packaging.py
+uv run python .github/workflows/scripts/lint_skill_refs.py
+uv run python .github/workflows/scripts/lint_skill_frontmatter.py
+claude plugin validate plugins/pipefy
+claude --plugin-dir plugins/pipefy plugin details pipefy   # lists every skill and command
+npx skills add . --list                                    # lists every skill and nothing else
+```
 
 ---
 
@@ -13,22 +39,22 @@ A skill is a directory with a `SKILL.md` entrypoint describing a Pipefy workflow
 ## Directory structure
 
 ```
-skills/
-  <domain>/
-    <skill-name>/
-      SKILL.md          ← the skill file
-      references/       ← when the workflow has surface-specific instructions
-        mcp.md          ← MCP controls, profiles, response envelopes
-        cli.md          ← shipped commands and flags
-      COMPLIANCE.md     ← required for regulated-domain / blueprint skills
-  AGENTS.md             ← this file
-  README.md             ← catalog index
+plugins/
+  AGENTS.md               ← this file
+  pipefy/
+    skills/
+      <skill-name>/
+        SKILL.md          ← the skill file
+        references/       ← when the workflow has surface-specific instructions
+          mcp.md          ← MCP controls, profiles, response envelopes
+          cli.md          ← shipped commands and flags
+        COMPLIANCE.md     ← required for regulated-domain / blueprint skills
+    README.md             ← plugin README and skill catalog
 ```
 
 The copyable starter lives at [`.github/skill-template/pipefy-skill-template/`](../.github/skill-template/pipefy-skill-template/), outside this catalog.
 
-**Domain folders** match the MCP tool surface:
-`pipes-and-cards`, `database-tables`, `relations`, `reports`, `automations`, `ipaas`, `ai-agents`, `observability`, `members-email-webhooks`, `portal-setup`, `attachments`, `introspection`, `building`, `process-design`, `process-impact`, `process-intelligence`, `api-troubleshoot`, `onboarding`
+Each skill folder sits directly under `plugins/pipefy/skills/`, with no domain folder in between. `npx skills add` searches a plugin's `skills/` folder only one level deep; with a deeper layout it falls back to a scan of the whole repository and also installs the skill template.
 
 Regulated domains (`legal`, `human-resources`, `finance`, `compliance`, or any skill involving decisions about natural persons) require substantive Legal review and a filled `COMPLIANCE.md` (start from [`docs/compliance/COMPLIANCE.template.md`](../docs/compliance/COMPLIANCE.template.md)). See [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
@@ -97,7 +123,6 @@ Common errors and how to recover.
 ## Naming conventions
 
 - **Skill names:** kebab-case, descriptive, start with `pipefy-` (`pipefy-pipes-and-cards`, `pipefy-process-design`).
-- **Domain folders:** kebab-case, plural where natural (`pipes-and-cards`, `automations`).
 - **Stable IDs:** once a skill is published, renames require a CHANGELOG note so agent prompts using old names still resolve.
 
 ---
@@ -146,7 +171,7 @@ When a skill needs stable URLs into this repo’s Markdown:
 - **MCP tool semantics** — `docs/mcp/tools/<domain>.md` (cross-cutting rules: `docs/mcp/tools/cross-cutting.md`).
 - **CLI-only flows** — `docs/cli/` (e.g. `docs/cli/self-healing.md`).
 - **SDK usage** — `docs/sdk/README.md`.
-- **Install**: `docs/install.md` (canonical snippets). First-time agent checklist: `skills/onboarding/pipefy-toolkit-setup/SKILL.md`. **`PIPEFY_*` env vars and `config.toml`**: `docs/config.md`. **MCP ↔ CLI matrix**: `docs/parity.md`.
+- **Install**: `docs/install.md` (canonical snippets). First-time agent checklist: `plugins/pipefy/skills/pipefy-toolkit-setup/SKILL.md`. **`PIPEFY_*` env vars and `config.toml`**: `docs/config.md`. **MCP ↔ CLI matrix**: `docs/parity.md`.
 
 ---
 

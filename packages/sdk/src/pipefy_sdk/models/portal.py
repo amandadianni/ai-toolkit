@@ -33,6 +33,7 @@ PortalElementType = Literal[
     "automationButton",
     "contentBlock",
     "document",
+    "customCode",
 ]
 
 

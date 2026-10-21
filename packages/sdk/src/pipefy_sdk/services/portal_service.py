@@ -43,7 +43,9 @@ from pipefy_sdk.queries.portal_queries import (
     DELETE_PAGE_MUTATION,
     DUPLICATE_ELEMENT_MUTATION,
     FIND_OR_CREATE_PORTAL_MUTATION,
+    GET_HTML_INTERFACE_QUERY,
     GET_PORTAL_QUERY,
+    LIST_INTERFACES_QUERY,
     LIST_PORTALS_QUERY,
     SORT_PAGES_MUTATION,
     UPDATE_ELEMENT_MUTATION,
@@ -69,6 +71,9 @@ _PORTAL_PERMISSION_MESSAGE = (
     "Permission denied. Request organization permissions such as "
     "`create_portal` or `manage_portals` from your admin."
 )
+
+# Largest page the Interfaces API returns per request.
+_INTERFACES_PER_REQUEST = 50
 
 
 def _map_portal_permission_error(
@@ -245,6 +250,12 @@ def _normalize_portal_detail(portal: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalize_html_interface_detail(interface: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an HTML interface payload with ``uuid`` aliases on pages and elements."""
+    pages = [_normalize_portal_page(page) for page in interface.get("pages") or []]
+    return {**_with_uuid_alias(interface), "pages": pages}
+
+
 def _stored_element(
     portal: dict[str, Any], *, portal_uuid: str, page_id: str, element_id: str
 ) -> dict[str, Any]:
@@ -368,6 +379,81 @@ class PortalService:
             msg = f"Portal '{portal_uuid}' was not found."
             raise ValueError(msg)
         return _normalize_portal_detail(portal)
+
+    async def list_html_interfaces(
+        self,
+        organization_uuid: str | int,
+        search_term: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List an organization's HTML interfaces via the Interfaces schema.
+
+        Queries plain interfaces (no sub type, so never portals) page by page and
+        keeps the ones with ``contentModeHtml``; grid interfaces are dropped.
+
+        Args:
+            organization_uuid: Organization UUID, or numeric organization id.
+            search_term: Optional name filter forwarded as ``searchTerm``.
+        """
+        resolved_org_uuid = await resolve_organization_uuid(
+            self._public_executor.execute_query,
+            organization_uuid,
+        )
+        variables: dict[str, Any] = {
+            "org_uuid": resolved_org_uuid,
+            "filterBySubType": "interface",
+            "first": _INTERFACES_PER_REQUEST,
+        }
+        if search_term is not None:
+            variables["searchTerm"] = search_term
+        nodes = await self._all_interface_nodes(variables)
+        return [_with_uuid_alias(node) for node in nodes if node.get("contentModeHtml")]
+
+    async def _all_interface_nodes(
+        self, variables: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Run ``LIST_INTERFACES_QUERY`` page by page and return every node."""
+        nodes: list[dict[str, Any]] = []
+        while True:
+            data = await self.execute_interfaces_query(LIST_INTERFACES_QUERY, variables)
+            connection = data.get("interfaces") or {}
+            nodes.extend(unwrap_relay_connection_nodes(connection))
+            page_info = connection.get("pageInfo") or {}
+            end_cursor = page_info.get("endCursor")
+            if not page_info.get("hasNextPage") or not end_cursor:
+                return nodes
+            variables = {**variables, "after": end_cursor}
+
+    async def get_html_interface(self, interface_uuid: str) -> dict[str, Any]:
+        """Fetch an HTML interface with each page's elements and live HTML documents.
+
+        Each element carries ``dataSources`` (``id``, ``name``, ``filters``, ``repoId``,
+        ``repoName``, ``repoType``, ``fieldKeys``) and ``htmlDocument`` (``content``,
+        ``contentHash``, ``createdAt``); ``htmlDocument`` is null for an element that
+        is not ``customCode`` or has no stored HTML yet.
+
+        Args:
+            interface_uuid: HTML interface UUID.
+
+        Raises:
+            PipefyGraphQLError: No interface has this uuid; the API answers a
+                missing uuid with an error.
+            ValueError: The interface is a grid interface, or the response has no
+                interface.
+        """
+        data = await self.execute_interfaces_query(
+            GET_HTML_INTERFACE_QUERY, {"uuid": interface_uuid}
+        )
+        interface = data.get("interface")
+        if interface is None:
+            msg = f"Interface '{interface_uuid}' was not found."
+            raise ValueError(msg)
+        if not interface.get("contentModeHtml"):
+            msg = (
+                f"Interface '{interface_uuid}' is not an HTML interface; "
+                "use get_portal to read its elements."
+            )
+            raise ValueError(msg)
+        return _normalize_html_interface_detail(interface)
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).

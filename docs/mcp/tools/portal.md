@@ -72,7 +72,7 @@ Do **not** publish via `createElement(type: subPortal)` — live API expects an 
 
 ## Page element types (`InterfacePageElementType`)
 
-Fifteen values accepted by `create_portal_element` / `update_portal_element` (SDK `PortalElementType`):
+Sixteen values accepted by `create_portal_element` / `update_portal_element` (SDK `PortalElementType`):
 
 | `type` | Metadata expectations (SDK) | Agent notes |
 |--------|----------------------------|-------------|
@@ -91,6 +91,7 @@ Fifteen values accepted by `create_portal_element` / `update_portal_element` (SD
 | `automationButton` | Opaque JSON | Automation trigger |
 | `contentBlock` | Opaque JSON | Content block |
 | `document` | Opaque JSON | Document widget |
+| `customCode` | Opaque JSON | HTML interfaces only (`contentModeHtml`): the element whose HTML is written with `writeHtmlDocument`. Read it back with the SDK's `get_html_interface`. |
 
 **`update_portal_element`:** `metadata` is **replace-all** on the wire (`updateElement.metadata` required every time). Send the full blob, not a patch. `data_sources` is replace-all too, and the API rejects an update without it: `[]` unlinks the element from its pipe or table. To keep the current data sources, omit `data_sources` and pass `portal_uuid`; the SDK reads them from `get_portal` (`pages[].elements[].dataSources`) and sends them back, together with the element's stored `editable` unless you pass one (the API rejects an update whose data source lists `fieldKeys` without `editable`). Every update passes one of the two; omitting both is rejected before any call. An element with no bindings (`link`, `text`) can pass `data_sources: []`, which skips the read.
 
@@ -239,7 +240,7 @@ Nested GraphQL/internal_api `success: false` → MCP top-level `{ success: false
 When changing portal SDK/MCP/CLI behavior:
 
 1. **TDD loop:** SDK unit tests → MCP tool tests → CLI tests; `uv run pytest -m "not integration" -k portal`; update [`docs/parity.md`](../../parity.md) in the same PR.
-2. **Live schema:** Portal mutations may live on Interfaces or internal_api (see [Endpoints](#endpoints) above), not the main GraphQL URL. Before adding SDK queries, verify shapes with [`skills/introspection/pipefy-introspection/SKILL.md`](../../../skills/introspection/pipefy-introspection/SKILL.md) (`introspect_mutation` / `pipefy introspect mutation`) or `gql-cli` against the derived URLs (set `PIPEFY_BASE_URL` and auth per [`docs/config.md`](../../config.md)):
+2. **Live schema:** Portal mutations may live on Interfaces or internal_api (see [Endpoints](#endpoints) above), not the main GraphQL URL. Before adding SDK queries, verify shapes with [`plugins/pipefy/skills/pipefy-introspection/SKILL.md`](../../../plugins/pipefy/skills/pipefy-introspection/SKILL.md) (`introspect_mutation` / `pipefy introspect mutation`) or `gql-cli` against the derived URLs (set `PIPEFY_BASE_URL` and auth per [`docs/config.md`](../../config.md)):
 
    ```bash
    uv run gql-cli --headers "Authorization: Bearer $PIPEFY_ACCESS_TOKEN" \

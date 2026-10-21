@@ -131,7 +131,7 @@ Before `move_card_to_phase`, call `get_phase_allowed_move_targets`. Required emp
 | `update_phase_field` | No | Rename, reorder, change required flag. |
 | `delete_phase_field` | No | **Destructive; review and approve first.** |
 
-**Field types:** `field_type` takes a `FieldTypeId` value, which the `create_phase_field` input schema lists (or `introspect_type type_name="FieldTypeId"`). Pass `options` for select, radio, and checklist types. A `connector` field also needs `extra_input.connectedRepoId`: a pipe id, or a table id.
+**Field types:** `field_type` takes a `FieldTypeId` value, which the `create_phase_field` input schema lists (or `introspect_type type_name="FieldTypeId"`). Set `options` for select, radio, and checklist types. A `connector` field also needs `extra_input.connectedRepoId`: a pipe id, or a table id.
 
 ---
 
@@ -169,7 +169,7 @@ Before `move_card_to_phase`, call `get_phase_allowed_move_targets`. Required emp
 
 ### Count and filter cards
 
-`get_records` answers "how many" in one call: pass `first=1` and read `records.totalCount`, not the length of a page. A count per group (per assignee, per label) is one call per group.
+`get_records` answers "how many" in one call: set `first=1` and read `records.totalCount`, not the length of a page. A count per group (per assignee, per label) is one call per group.
 In `where` and `order_by`, `field` must be the custom field uuid from `get_phase_fields` (for a start-form field, call `get_phase_fields` with `phase_id` set to `get_pipe`'s `startFormPhaseId`); a slug is rejected.
 Dates are ISO 8601: date-time attributes such as `CREATED_AT` and `FINISHED_AT` take an offset, but a `date` custom field takes the bare date (`"2026-07-03"`), because a non-UTC offset makes `eq` return 0 and shifts a `between` window. `between` takes `{"min": ..., "max": ...}`.
 `like` and `ilike` both ignore case and match each word of the value as a substring, in any order: `%` and `_` are literal, so `ilike: "acme"`, not `"%acme%"`. To find a card by id, use `where={"attribute": "ID", "eq": "<id>"}`.
@@ -186,7 +186,7 @@ get_records pipe_id=67890 where={"attribute":"FINISHED_AT","between":{"min":"202
 get_cards pipe_id=301234567 first=50 after=<endCursor>
 ```
 
-Read `pageInfo.hasNextPage` and `pageInfo.endCursor` from the response; pass `after=<endCursor>` for the next page.
+Read `pageInfo.hasNextPage` and `pageInfo.endCursor` from the response; set `after=<endCursor>` for the next page.
 
 ---
 

@@ -8,9 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **CLI tracebacks, local variables**: when the `pipefy` CLI hit an error it does not turn into a message, it printed a traceback that listed the local variables of each frame. In `pipefy auth login`, and in the token refresh that runs before a data command, those variables hold the access and refresh tokens, so up to the first 80 characters of each token went to stderr, and from there to terminal scrollback or a CI log. The traceback now shows the file, line, and error without local variables.
+
+## [0.5.4-beta.2] - 2026-10-20
+
+### Changed
+
+- **Claude Code and Cursor plugin, folder layout**: the plugin moved from the repository root to `plugins/pipefy/`, and both marketplaces point at it with `"source": "./plugins/pipefy"`. With the plugin at the root, every tracked file counted as a plugin file, and the Claude plugin directory timed out ("The directory service didn't answer in time") while it validated the repository. The plugin folder now holds 59 files, and `lint_plugin_packaging.py` keeps it at 200 files or fewer. Existing installs move to the new layout when they update to the next version. Opening the repository no longer registers the hosted MCP server at project scope, because `.mcp.json` now lives in the plugin folder.
+- **Skills, folder layout**: each skill moved from `skills/<domain>/<skill>/` to `plugins/pipefy/skills/<skill>/`. `npx skills add pipefy/ai-toolkit` now installs exactly the 18 skills; with the domain folders, it also installed the skill template from `.github/skill-template/`. Installed skills keep working, and `npx skills update` finds them at the new path. The skill catalog is now the plugin README, `plugins/pipefy/README.md`, and the authoring guide is `plugins/AGENTS.md`.
+
 ### Added
 
 - **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, count and filter the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, parsed with the same rules as MCP (a bad key or value exits 2), and `--first` 1 to 50 with `--after`. (#791)
+- **SDK HTML interface reads**: `PipefyClient.list_html_interfaces` lists an organization's HTML interfaces (`contentModeHtml`). It follows the Interfaces cursor across pages of 50 and never returns portals or grid interfaces, which `list_portals` cannot reach because it filters to portals. `PipefyClient.get_html_interface` reads one through `interface(uuid)`, because `get_portal`'s `portalInterface` exposes no `htmlDocument`. Each page's elements carry their declared `dataSources` (with `id`, `name` and `filters`) and their live `htmlDocument` (`content`, `contentHash`, `createdAt`). A grid interface is rejected with `ValueError` naming `get_portal`. `PortalElementType` accepts `customCode`, the element an HTML interface's page renders.
 - **SDK HTML interface write**: `PipefyClient.write_html_document` writes and publishes the HTML document of an HTML interface's `customCode` element (`writeHtmlDocument`). When the API rejects the HTML with `HTML_VALIDATION_FAILED`, the SDK raises `HtmlValidationError`. Its `violations` holds one `HtmlViolation` (`code`, `message`, `selector`, `attribute`) per rule broken, read from `extensions.violations`, and nothing is stored. The classifier reports the code as `invalid_arguments`. The MCP portal error mapper lists every violation with where it is, so an agent can fix them all before writing again.
 
 ### Fixed

@@ -31,7 +31,7 @@ Connect Claude Code, Cursor, and other AI agents to Pipefy. The toolkit has an M
 | **MCP server** | `pipefy-mcp-server` | Pipefy tools for MCP clients (Claude Code, Cursor, Claude Desktop, and others). Hosted at `https://mcp.pipefy.com/mcp`, or run locally for the full catalog. |
 | **CLI** | `pipefy-cli` | Most MCP capabilities as terminal commands, for scripting and CI. Coverage and MCP-only tools: [`docs/parity.md`](docs/parity.md). |
 | **SDK** | `pipefy` | GraphQL client, services, and models shared by the MCP server and the CLI. |
-| **Skills** | [`skills/`](skills/) | Markdown playbooks (Anthropic Skills format) for common Pipefy workflows. |
+| **Skills** | [`plugins/pipefy/skills/`](plugins/pipefy/skills/) | Markdown playbooks (Anthropic Skills format) for common Pipefy workflows. |
 
 Feedback and issues: [GitHub Issues](https://github.com/pipefy/ai-toolkit/issues) · **dev@pipefy.com**
 
@@ -100,7 +100,7 @@ Guides: [`docs/cli/`](docs/cli/README.md) and [`packages/cli/README.md`](package
 
 ## Agent skills
 
-[`skills/`](skills/) holds workflow playbooks (prerequisites, tool tables, steps, success criteria) for any agent that reads Markdown. Catalog: [`skills/README.md`](skills/README.md). Authoring guide: [`skills/AGENTS.md`](skills/AGENTS.md).
+[`plugins/pipefy/skills/`](plugins/pipefy/skills/) holds workflow playbooks (prerequisites, tool tables, steps, success criteria) for any agent that reads Markdown. Catalog: [`plugins/pipefy/README.md`](plugins/pipefy/README.md). Authoring guide: [`plugins/AGENTS.md`](plugins/AGENTS.md).
 
 ---
 
