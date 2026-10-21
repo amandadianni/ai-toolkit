@@ -6,6 +6,7 @@ import importlib
 import json
 import logging
 from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import call as mock_call
 
 import pytest
 from _shared.fixture_ids import (
@@ -22,7 +23,12 @@ from pipefy_sdk.exceptions import PortalPermissionError
 from pipefy_sdk.graphql_executor import PipefyGraphQLError
 from pipefy_sdk.models.portal import parse_portal_page_layout
 from pipefy_sdk.queries.observability_queries import RESOLVE_ORGANIZATION_UUID_QUERY
-from pipefy_sdk.queries.portal_queries import GET_PORTAL_QUERY, LIST_PORTALS_QUERY
+from pipefy_sdk.queries.portal_queries import (
+    GET_HTML_INTERFACE_QUERY,
+    GET_PORTAL_QUERY,
+    LIST_INTERFACES_QUERY,
+    LIST_PORTALS_QUERY,
+)
 from pipefy_sdk.services.portal_service import PortalService
 
 
@@ -352,6 +358,262 @@ async def test_get_portal_uses_correct_variables() -> None:
     query_used, variables = interfaces_executor.execute_query.call_args[0]
     assert query_used is GET_PORTAL_QUERY
     assert variables == {"uuid": "uuid-abc"}
+
+
+def _interfaces_page(nodes, *, has_next_page=False, end_cursor=None):
+    """One ``interfaces`` connection page."""
+    return {
+        "interfaces": {
+            "edges": [{"node": node} for node in nodes],
+            "pageInfo": {"hasNextPage": has_next_page, "endCursor": end_cursor},
+        }
+    }
+
+
+_HTML_INTERFACE_NODE = {
+    "id": "html-uuid-1",
+    "name": "Sales dashboard",
+    "visibility": "internal",
+    "contentModeHtml": True,
+}
+
+_SECOND_HTML_INTERFACE_NODE = {**_HTML_INTERFACE_NODE, "id": "html-uuid-2"}
+
+_GRID_INTERFACE_NODE = {
+    "id": "grid-uuid-1",
+    "name": "Team board",
+    "visibility": "internal",
+    "contentModeHtml": False,
+}
+
+_LIST_INTERFACES_VARIABLES = {
+    "org_uuid": EXAMPLE_ORG_UUID,
+    "filterBySubType": "interface",
+    "first": 50,
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_returns_only_html_interfaces() -> None:
+    """list_html_interfaces drops grid interfaces and aliases id as uuid."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        _interfaces_page([_HTML_INTERFACE_NODE, _GRID_INTERFACE_NODE]),
+    )
+
+    result = await service.list_html_interfaces(EXAMPLE_ORG_UUID)
+
+    assert result == [{**_HTML_INTERFACE_NODE, "uuid": "html-uuid-1"}]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_sends_interface_filter_page_size_and_search_term() -> (
+    None
+):
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _interfaces_page([]),
+    )
+
+    await service.list_html_interfaces(EXAMPLE_ORG_UUID, search_term="sales")
+
+    interfaces_executor.execute_query.assert_awaited_once_with(
+        LIST_INTERFACES_QUERY, {**_LIST_INTERFACES_VARIABLES, "searchTerm": "sales"}
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_returns_html_interfaces_from_a_later_page() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        _interfaces_page(
+            [_HTML_INTERFACE_NODE], has_next_page=True, end_cursor="cursor-1"
+        ),
+        _interfaces_page([_GRID_INTERFACE_NODE, _SECOND_HTML_INTERFACE_NODE]),
+    ]
+
+    result = await service.list_html_interfaces(EXAMPLE_ORG_UUID)
+
+    assert result == [
+        {**_HTML_INTERFACE_NODE, "uuid": "html-uuid-1"},
+        {**_SECOND_HTML_INTERFACE_NODE, "uuid": "html-uuid-2"},
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_requests_the_next_page_after_the_end_cursor() -> (
+    None
+):
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        _interfaces_page([], has_next_page=True, end_cursor="cursor-1"),
+        _interfaces_page([]),
+    ]
+
+    await service.list_html_interfaces(EXAMPLE_ORG_UUID)
+
+    assert interfaces_executor.execute_query.await_args_list == [
+        mock_call(LIST_INTERFACES_QUERY, _LIST_INTERFACES_VARIABLES),
+        mock_call(
+            LIST_INTERFACES_QUERY, {**_LIST_INTERFACES_VARIABLES, "after": "cursor-1"}
+        ),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_stops_on_a_last_page_that_still_has_a_cursor() -> (
+    None
+):
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        _interfaces_page(
+            [_HTML_INTERFACE_NODE], has_next_page=False, end_cursor="cursor-1"
+        ),
+    ]
+
+    await service.list_html_interfaces(EXAMPLE_ORG_UUID)
+
+    assert interfaces_executor.execute_query.await_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_stops_when_a_next_page_has_no_cursor() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        _interfaces_page([_HTML_INTERFACE_NODE], has_next_page=True, end_cursor=None),
+    ]
+
+    result = await service.list_html_interfaces(EXAMPLE_ORG_UUID)
+
+    assert result == [{**_HTML_INTERFACE_NODE, "uuid": "html-uuid-1"}]
+    assert interfaces_executor.execute_query.await_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_html_interfaces_numeric_org_id_resolves_via_main_graphql_client() -> (
+    None
+):
+    """Numeric org ids resolve to the org uuid before the Interfaces query."""
+    service, public_executor, interfaces_executor = _make_interfaces_service(
+        _interfaces_page([]),
+    )
+    public_executor.execute_query = AsyncMock(
+        return_value={"organization": {"uuid": EXAMPLE_ORG_UUID}}
+    )
+
+    await service.list_html_interfaces(EXAMPLE_NUMERIC_ORG_ID)
+
+    public_executor.execute_query.assert_called_once_with(
+        RESOLVE_ORGANIZATION_UUID_QUERY,
+        {"id": EXAMPLE_NUMERIC_ORG_ID},
+    )
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["org_uuid"] == EXAMPLE_ORG_UUID
+
+
+_CUSTOM_CODE_ELEMENT = {
+    "id": "el-1",
+    "type": "customCode",
+    "dataSources": [
+        {
+            "id": "open-sales",
+            "name": "Open sales",
+            "filters": None,
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "repoName": "Sales",
+            "repoType": "Pipe",
+            "fieldKeys": ["amount"],
+        }
+    ],
+    "htmlDocument": {
+        "content": "<h1>Sales</h1>",
+        "contentHash": "a1b2c3",
+        "createdAt": "2026-10-20T12:00:00Z",
+    },
+}
+
+_HTML_INTERFACE_DETAIL_GRAPHQL = {
+    "id": "html-uuid-1",
+    "name": "Sales dashboard",
+    "visibility": "internal",
+    "contentModeHtml": True,
+    "pages": [{"id": "page-1", "title": "Page", "elements": [_CUSTOM_CODE_ELEMENT]}],
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_html_interface_returns_pages_with_html_documents() -> None:
+    """Each element keeps its HTML document and declared sources, with uuid aliases."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"interface": _HTML_INTERFACE_DETAIL_GRAPHQL},
+    )
+
+    result = await service.get_html_interface("html-uuid-1")
+
+    assert result == {
+        **_HTML_INTERFACE_DETAIL_GRAPHQL,
+        "uuid": "html-uuid-1",
+        "pages": [
+            {
+                "id": "page-1",
+                "uuid": "page-1",
+                "title": "Page",
+                "elements": [{**_CUSTOM_CODE_ELEMENT, "uuid": "el-1"}],
+            }
+        ],
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_html_interface_queries_the_interface_by_uuid() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"interface": _HTML_INTERFACE_DETAIL_GRAPHQL},
+    )
+
+    await service.get_html_interface("html-uuid-1")
+
+    interfaces_executor.execute_query.assert_awaited_once_with(
+        GET_HTML_INTERFACE_QUERY, {"uuid": "html-uuid-1"}
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_html_interface_not_found_raises_value_error() -> None:
+    """A null interface names the uuid that was not found."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"interface": None},
+    )
+
+    with pytest.raises(ValueError, match="Interface 'html-uuid-missing' was not found"):
+        await service.get_html_interface("html-uuid-missing")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("content_mode_html", [False, None])
+async def test_get_html_interface_rejects_grid_interface(
+    content_mode_html: bool | None,
+) -> None:
+    """A grid interface has no HTML document; the error points to get_portal."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {
+            "interface": {
+                **_HTML_INTERFACE_DETAIL_GRAPHQL,
+                "contentModeHtml": content_mode_html,
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match="not an HTML interface.*get_portal"):
+        await service.get_html_interface("html-uuid-1")
 
 
 _portal_queries_module = importlib.import_module("pipefy_sdk.queries.portal_queries")
@@ -1856,6 +2118,32 @@ async def test_sub_portal_internal_api_non_permission_error_propagates() -> None
             _FORMS_ELEMENT_ID,
             _SUB_PORTAL_UUID,
         )
+
+
+def test_get_html_interface_selects_data_source_id_name_and_filters():
+    interface = GET_HTML_INTERFACE_QUERY.document.definitions[
+        0
+    ].selection_set.selections[0]
+    pages = next(
+        field
+        for field in interface.selection_set.selections
+        if field.name.value == "pages"
+    )
+    elements = next(
+        field
+        for field in pages.selection_set.selections
+        if field.name.value == "elements"
+    )
+    data_sources = next(
+        field
+        for field in elements.selection_set.selections
+        if field.name.value == "dataSources"
+    )
+    assert {field.name.value for field in data_sources.selection_set.selections} >= {
+        "id",
+        "name",
+        "filters",
+    }
 
 
 def test_get_portal_selects_element_data_sources_and_editable():

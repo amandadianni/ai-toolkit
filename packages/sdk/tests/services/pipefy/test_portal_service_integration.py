@@ -123,6 +123,57 @@ async def test_live_get_portal_round_trip_from_list(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_live_get_html_interface_round_trip_from_list(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: list_html_interfaces keeps HTML interfaces; get_html_interface reads one."""
+    org_uuid = _require_portal_org_uuid()
+
+    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
+    if not interfaces:
+        pytest.skip(f"No HTML interface found for org {org_uuid}")
+    portals = await live_portal_service.list_portals(org_uuid)
+    assert all(interface["contentModeHtml"] is True for interface in interfaces)
+    assert not {i["uuid"] for i in interfaces} & {p["uuid"] for p in portals}
+
+    interface_uuid = interfaces[0]["uuid"]
+    detail = await live_portal_service.get_html_interface(interface_uuid)
+
+    assert detail["uuid"] == interface_uuid
+    assert detail["contentModeHtml"] is True
+    assert all(
+        {"htmlDocument", "dataSources"} <= element.keys()
+        for page in detail["pages"]
+        for element in page["elements"]
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_live_get_html_interface_data_sources_carry_id_name_and_filters(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: every declared source of an HTML interface carries its handle fields."""
+    org_uuid = _require_portal_org_uuid()
+
+    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
+    if not interfaces:
+        pytest.skip(f"No HTML interface found for org {org_uuid}")
+    detail = await live_portal_service.get_html_interface(interfaces[0]["uuid"])
+    sources = [
+        source
+        for page in detail["pages"]
+        for element in page["elements"]
+        for source in element["dataSources"]
+    ]
+    if not sources:
+        pytest.skip("First HTML interface declares no data sources")
+
+    assert [s for s in sources if not {"id", "name", "filters"} <= s.keys()] == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_live_create_portal_idempotent_returns_same_uuid(
     live_portal_service: PortalService,
 ) -> None:

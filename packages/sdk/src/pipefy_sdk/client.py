@@ -2104,6 +2104,35 @@ class PipefyClient:
         """
         return await self._portal_service.get_portal(portal_uuid)
 
+    async def list_html_interfaces(
+        self,
+        organization_uuid: str | int,
+        search_term: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List an organization's HTML interfaces (``contentModeHtml``).
+
+        Args:
+            organization_uuid: Organization UUID, or numeric organization id.
+            search_term: Optional name filter.
+        """
+        return await self._portal_service.list_html_interfaces(
+            organization_uuid, search_term=search_term
+        )
+
+    async def get_html_interface(self, interface_uuid: str) -> dict[str, Any]:
+        """Fetch an HTML interface with each element's live HTML document.
+
+        Args:
+            interface_uuid: HTML interface UUID.
+
+        Raises:
+            PipefyGraphQLError: No interface has this uuid; the API answers a
+                missing uuid with an error.
+            ValueError: The interface is a grid interface, or the response has no
+                interface.
+        """
+        return await self._portal_service.get_html_interface(interface_uuid)
+
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent).
 
