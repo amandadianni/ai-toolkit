@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 # Typed SDK errors for gradual service-layer migration; not all call sites raise these yet.
 
 
@@ -61,6 +64,68 @@ class AiAgentConfigureError(PipefyError):
                 "call toggle_ai_agent_status to activate it."
             )
         super().__init__(message)
+
+
+def _text_or_none(value: object) -> str | None:
+    """Read a blank or non-text value as absent."""
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+@dataclass(frozen=True)
+class HtmlViolation:
+    """One rule an interface's HTML broke, as the API reports it.
+
+    ``code`` and ``message`` are non-empty. ``selector`` names the offending tag
+    and ``attribute`` the offending attribute on it; each is ``None`` or
+    non-empty, and both are ``None`` for a violation of the whole document, such
+    as its size.
+    """
+
+    code: str
+    message: str
+    selector: str | None
+    attribute: str | None
+
+    def __post_init__(self) -> None:
+        if not self.code.strip() or not self.message.strip():
+            raise ValueError("An HTML violation needs a non-empty code and message.")
+        if self.selector == "" or self.attribute == "":
+            raise ValueError(
+                "An HTML violation's selector and attribute are None or non-empty."
+            )
+
+    @classmethod
+    def from_extension(cls, raw: dict[str, Any]) -> HtmlViolation | None:
+        """Parse one ``extensions.violations`` entry; ``None`` without a code and message."""
+        code = _text_or_none(raw.get("code"))
+        message = _text_or_none(raw.get("message"))
+        if code is None or message is None:
+            return None
+        return cls(
+            code=code,
+            message=message,
+            selector=_text_or_none(raw.get("selector")),
+            attribute=_text_or_none(raw.get("attribute")),
+        )
+
+
+class HtmlValidationError(PipefyError):
+    """Raised when an HTML interface write fails validation (``HTML_VALIDATION_FAILED``).
+
+    Nothing was stored. ``violations`` lists every rule the HTML broke, at least
+    one, so a caller can fix them all before writing again.
+    """
+
+    def __init__(self, violations: tuple[HtmlViolation, ...]) -> None:
+        if not violations:
+            raise ValueError("HtmlValidationError needs at least one violation.")
+        self.violations = violations
+        super().__init__(
+            "HTML validation failed: "
+            + " ".join(violation.message for violation in violations)
+        )
 
 
 class PortalPermissionError(ValueError):

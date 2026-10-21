@@ -2133,6 +2133,27 @@ class PipefyClient:
         """
         return await self._portal_service.get_html_interface(interface_uuid)
 
+    async def write_html_document(
+        self, *, page_id: str, element_id: str, content: str
+    ) -> dict[str, Any]:
+        """Write and publish the HTML of an HTML interface's ``customCode`` element.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            content: The whole HTML document; it replaces the live one.
+
+        Raises:
+            HtmlValidationError: The HTML broke the API's HTML rules; nothing was
+                stored, and ``violations`` lists every rule it broke.
+            PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: No page has this id, or the element is not on the
+                page; the API answers a missing target with an error.
+        """
+        return await self._portal_service.write_html_document(
+            page_id=page_id, element_id=element_id, content=content
+        )
+
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent).
 

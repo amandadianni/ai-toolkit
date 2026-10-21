@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **SDK HTML interface reads**: `PipefyClient.list_html_interfaces` lists an organization's HTML interfaces (`contentModeHtml`). It follows the Interfaces cursor across pages of 50 and never returns portals or grid interfaces, which `list_portals` cannot reach because it filters to portals. `PipefyClient.get_html_interface` reads one through `interface(uuid)`, because `get_portal`'s `portalInterface` exposes no `htmlDocument`. Each page's elements carry their declared `dataSources` (with `id`, `name` and `filters`) and their live `htmlDocument` (`content`, `contentHash`, `createdAt`). A grid interface is rejected with `ValueError` naming `get_portal`. `PortalElementType` accepts `customCode`, the element an HTML interface's page renders.
+- **SDK HTML interface write**: `PipefyClient.write_html_document` writes and publishes the HTML document of an HTML interface's `customCode` element (`writeHtmlDocument`). When the API rejects the HTML with `HTML_VALIDATION_FAILED`, the SDK raises `HtmlValidationError`. Its `violations` holds one `HtmlViolation` (`code`, `message`, `selector`, `attribute`) per rule broken, read from `extensions.violations`, and nothing is stored. The classifier reports the code as `GraphQLProblemKind.INVALID_ARGUMENTS`. For the MCP write tool to come, `map_portal_error_to_message` already formats an `HtmlValidationError` as one line per violation with where it is, so an agent can fix them all before writing again.
+
 ### Fixed
 
 - **CLI tracebacks, local variables**: when the `pipefy` CLI hit an error it does not turn into a message, it printed a traceback that listed the local variables of each frame. In `pipefy auth login`, and in the token refresh that runs before a data command, those variables hold the access and refresh tokens, so up to the first 80 characters of each token went to stderr, and from there to terminal scrollback or a CI log. The traceback now shows the file, line, and error without local variables.
@@ -22,7 +27,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **SDK / MCP `get_records` / CLI `pipefy card records`**: `PipefyClient.get_records`, the MCP `get_records` tool and `pipefy card records` list, count and filter the cards of a pipe on the server through the `records` query: a typed `where` filter (dates, phase, labels, assignees, creator, title and custom fields), `search_term`, `phase_id`, `order_by`, and an exact `totalCount`. A custom `field` in `where` or `order_by` must be the lowercase, hyphenated field uuid; a slug or any other form is rejected with `ValueError` before any call. `parse_record_filter` and `parse_record_order` turn untyped input into these types with the same checks. Pages are capped at 50. The MCP tool takes the same arguments (`first` 1 to 50, a non-uuid `field` returns `INVALID_ARGUMENTS`, and a pipe the caller cannot access says so); the CLI takes `--where` / `--order-by` as JSON, parsed with the same rules as MCP (a bad key or value exits 2), and `--first` 1 to 50 with `--after`. (#791)
-- **SDK HTML interface reads**: `PipefyClient.list_html_interfaces` lists an organization's HTML interfaces (`contentModeHtml`). It follows the Interfaces cursor across pages of 50 and never returns portals or grid interfaces, which `list_portals` cannot reach because it filters to portals. `PipefyClient.get_html_interface` reads one through `interface(uuid)`, because `get_portal`'s `portalInterface` exposes no `htmlDocument`. Each page's elements carry their declared `dataSources` (with `id`, `name` and `filters`) and their live `htmlDocument` (`content`, `contentHash`, `createdAt`). A grid interface is rejected with `ValueError` naming `get_portal`. `PortalElementType` accepts `customCode`, the element an HTML interface's page renders.
 
 ### Fixed
 

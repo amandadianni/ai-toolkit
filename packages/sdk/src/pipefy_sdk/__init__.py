@@ -7,6 +7,8 @@ __version__ = "0.5.4-beta.2"
 from pipefy_sdk.client import PipefyClient, PipefyEngine
 from pipefy_sdk.exceptions import (
     AiAgentConfigureError,
+    HtmlValidationError,
+    HtmlViolation,
     PipefyAPIError,
     PipefyError,
     PipefyRequestTimeoutError,
@@ -156,6 +158,8 @@ __all__ = [
     "InboxEmailDraft",
     "GraphQLProblem",
     "GraphQLProblemKind",
+    "HtmlValidationError",
+    "HtmlViolation",
     "KnowledgeBaseAccessProbeResult",
     "KnowledgeBaseDataLookupPayload",
     "KnowledgeBaseDeleteResult",

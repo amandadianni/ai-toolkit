@@ -8,9 +8,17 @@ from typing import Any
 
 from graphql import DocumentNode
 
-from pipefy_sdk.exceptions import PortalPermissionError
+from pipefy_sdk.exceptions import (
+    HtmlValidationError,
+    HtmlViolation,
+    PortalPermissionError,
+)
 from pipefy_sdk.graphql_executor import GraphQLExecutor, PipefyGraphQLError
-from pipefy_sdk.graphql_problem import GraphQLProblemKind, classify_exception
+from pipefy_sdk.graphql_problem import (
+    HTML_VALIDATION_FAILED_CODE,
+    GraphQLProblemKind,
+    classify_exception,
+)
 from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     CreatePortalInput,
@@ -44,6 +52,7 @@ from pipefy_sdk.queries.portal_queries import (
     UPDATE_INTERFACE_MUTATION,
     UPDATE_PAGE_LAYOUT_MUTATION,
     UPDATE_PAGE_MUTATION,
+    WRITE_HTML_DOCUMENT_MUTATION,
 )
 from pipefy_sdk.utils.organization_identifiers import resolve_organization_uuid
 from pipefy_sdk.utils.relay import unwrap_relay_connection_nodes
@@ -84,6 +93,36 @@ def _map_portal_permission_error(
     if problem is not None and problem.kind is GraphQLProblemKind.PERMISSION_DENIED:
         return PortalPermissionError(_PORTAL_PERMISSION_MESSAGE)
     return None
+
+
+def _map_html_validation_error(
+    exc: PipefyGraphQLError,
+) -> HtmlValidationError | None:
+    """Return an ``HtmlValidationError`` for an ``HTML_VALIDATION_FAILED`` error; else ``None``.
+
+    The API puts each violation on ``extensions.violations`` of the first error.
+    Entries that cannot form an ``HtmlViolation`` are skipped; an error with none
+    left stays a plain ``PipefyGraphQLError``, whose message still says what failed.
+    """
+    first = exc.errors[0] if exc.errors else None
+    if not isinstance(first, dict):
+        return None
+    extensions = first.get("extensions")
+    if not isinstance(extensions, dict):
+        return None
+    code = extensions.get("code")
+    if not isinstance(code, str) or code.strip().upper() != HTML_VALIDATION_FAILED_CODE:
+        return None
+    raw_violations = extensions.get("violations")
+    if not isinstance(raw_violations, list):
+        return None
+    parsed = (
+        HtmlViolation.from_extension(raw)
+        for raw in raw_violations
+        if isinstance(raw, dict)
+    )
+    violations = tuple(violation for violation in parsed if violation is not None)
+    return HtmlValidationError(violations) if violations else None
 
 
 def _serialize_interfaces_json(value: dict[str, Any] | list[Any]) -> str:
@@ -415,6 +454,43 @@ class PortalService:
             )
             raise ValueError(msg)
         return _normalize_html_interface_detail(interface)
+
+    async def write_html_document(
+        self, *, page_id: str, element_id: str, content: str
+    ) -> dict[str, Any]:
+        """Write and publish the HTML of an HTML interface's ``customCode`` element.
+
+        Writing publishes: the new document goes live as soon as it is stored.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            content: The whole HTML document; it replaces the live one.
+
+        Raises:
+            HtmlValidationError: The HTML broke the API's HTML rules; nothing was
+                stored, and ``violations`` lists every rule it broke.
+            PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: No page has this id, or the element is not on the
+                page; the API answers a missing target with an error.
+        """
+        try:
+            return await _execute_query_with_portal_errors(
+                self.execute_interfaces_query,
+                WRITE_HTML_DOCUMENT_MUTATION,
+                {
+                    "input": {
+                        "page_id": page_id,
+                        "element_id": element_id,
+                        "content": content,
+                    }
+                },
+            )
+        except PipefyGraphQLError as exc:
+            validation_error = _map_html_validation_error(exc)
+            if validation_error is not None:
+                raise validation_error from exc
+            raise
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).
