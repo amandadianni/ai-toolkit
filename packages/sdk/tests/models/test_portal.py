@@ -95,6 +95,7 @@ def test_create_portal_element_input_accepts_link_metadata_with_name_only() -> N
         "button",
         "divider",
         "pages",
+        "subPortal",
         "automationButton",
         "contentBlock",
         "document",
