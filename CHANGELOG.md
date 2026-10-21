@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **CLI tracebacks, local variables**: when the `pipefy` CLI hit an error it does not turn into a message, it printed a traceback that listed the local variables of each frame. In `pipefy auth login`, and in the token refresh that runs before a data command, those variables hold the access and refresh tokens, so up to the first 80 characters of each token went to stderr, and from there to terminal scrollback or a CI log. The traceback now shows the file, line, and error without local variables.
+
 ## [0.5.4-beta.2] - 2026-10-20
 
 ### Changed
