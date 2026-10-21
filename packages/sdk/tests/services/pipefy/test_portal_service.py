@@ -2293,6 +2293,71 @@ def test_get_html_interface_selects_data_source_id_name_and_filters():
     }
 
 
+def _selection_names(selections):
+    return {field.name.value for field in selections}
+
+
+def _selected_field(selections, name):
+    return next(field for field in selections if field.name.value == name)
+
+
+def test_get_interface_html_guidelines_selects_every_guideline_field():
+    """A forgotten or misspelled field here would still pass a mocked-response test."""
+    guidelines = GET_INTERFACE_HTML_GUIDELINES_QUERY.document.definitions[
+        0
+    ].selection_set.selections[0]
+    top_level = _selection_names(guidelines.selection_set.selections)
+
+    assert top_level == {
+        "allowedAttributePrefixes",
+        "allowedDataAttributes",
+        "allowedDataPfyAttributes",
+        "allowedPlainAttributes",
+        "allowedTags",
+        "authoringNotes",
+        "cssRules",
+        "designSystem",
+        "errorCodes",
+        "filters",
+        "forbiddenAttributes",
+        "forbiddenTags",
+        "linkAttributes",
+        "maxAttributesPerElement",
+        "maxContentBytes",
+        "maxNestingDepth",
+        "urlRule",
+    }
+
+    for name in ("cssRules", "forbiddenAttributes", "forbiddenTags"):
+        rule = _selected_field(guidelines.selection_set.selections, name)
+        assert _selection_names(rule.selection_set.selections) == {
+            "code",
+            "message",
+            "subject",
+        }
+
+    error_codes = _selected_field(guidelines.selection_set.selections, "errorCodes")
+    assert _selection_names(error_codes.selection_set.selections) == {
+        "code",
+        "description",
+    }
+
+    filters = _selected_field(guidelines.selection_set.selections, "filters")
+    assert _selection_names(filters.selection_set.selections) == {
+        "description",
+        "example",
+        "fixedColumnNames",
+        "knownOperators",
+    }
+    known_operators = _selected_field(
+        filters.selection_set.selections, "knownOperators"
+    )
+    assert _selection_names(known_operators.selection_set.selections) == {
+        "filterType",
+        "operators",
+    }
+
+
 def test_get_portal_selects_element_data_sources_and_editable():
     """update_portal_element reads these to keep the bindings a caller omits."""
     portal = GET_PORTAL_QUERY.document.definitions[0].selection_set.selections[0]
