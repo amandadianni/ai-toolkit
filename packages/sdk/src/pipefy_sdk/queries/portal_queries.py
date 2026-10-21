@@ -112,6 +112,9 @@ GET_HTML_INTERFACE_QUERY = gql(
                     id
                     type
                     dataSources {
+                        id
+                        name
+                        filters
                         repoId
                         repoName
                         repoType

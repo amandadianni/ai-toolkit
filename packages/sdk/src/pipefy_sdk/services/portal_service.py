@@ -387,9 +387,10 @@ class PortalService:
     async def get_html_interface(self, interface_uuid: str) -> dict[str, Any]:
         """Fetch an HTML interface with each page's elements and live HTML documents.
 
-        Each element carries ``dataSources`` and ``htmlDocument`` (``content``,
-        ``contentHash``, ``createdAt``); ``htmlDocument`` is null for an element
-        that is not ``customCode`` or has no stored HTML yet.
+        Each element carries ``dataSources`` (``id``, ``name``, ``filters``, ``repoId``,
+        ``repoName``, ``repoType``, ``fieldKeys``) and ``htmlDocument`` (``content``,
+        ``contentHash``, ``createdAt``); ``htmlDocument`` is null for an element that
+        is not ``customCode`` or has no stored HTML yet.
 
         Args:
             interface_uuid: HTML interface UUID.

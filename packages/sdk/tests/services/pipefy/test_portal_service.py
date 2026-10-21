@@ -521,6 +521,9 @@ _CUSTOM_CODE_ELEMENT = {
     "type": "customCode",
     "dataSources": [
         {
+            "id": "open-sales",
+            "name": "Open sales",
+            "filters": None,
             "repoId": EXAMPLE_PIPE_REPO_ID,
             "repoName": "Sales",
             "repoType": "Pipe",
@@ -2115,6 +2118,32 @@ async def test_sub_portal_internal_api_non_permission_error_propagates() -> None
             _FORMS_ELEMENT_ID,
             _SUB_PORTAL_UUID,
         )
+
+
+def test_get_html_interface_selects_data_source_id_name_and_filters():
+    interface = GET_HTML_INTERFACE_QUERY.document.definitions[
+        0
+    ].selection_set.selections[0]
+    pages = next(
+        field
+        for field in interface.selection_set.selections
+        if field.name.value == "pages"
+    )
+    elements = next(
+        field
+        for field in pages.selection_set.selections
+        if field.name.value == "elements"
+    )
+    data_sources = next(
+        field
+        for field in elements.selection_set.selections
+        if field.name.value == "dataSources"
+    )
+    assert {field.name.value for field in data_sources.selection_set.selections} >= {
+        "id",
+        "name",
+        "filters",
+    }
 
 
 def test_get_portal_selects_element_data_sources_and_editable():

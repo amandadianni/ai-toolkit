@@ -150,6 +150,30 @@ async def test_live_get_html_interface_round_trip_from_list(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_live_get_html_interface_data_sources_carry_id_name_and_filters(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: every declared source of an HTML interface carries its handle fields."""
+    org_uuid = _require_portal_org_uuid()
+
+    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
+    if not interfaces:
+        pytest.skip(f"No HTML interface found for org {org_uuid}")
+    detail = await live_portal_service.get_html_interface(interfaces[0]["uuid"])
+    sources = [
+        source
+        for page in detail["pages"]
+        for element in page["elements"]
+        for source in element["dataSources"]
+    ]
+    if not sources:
+        pytest.skip("First HTML interface declares no data sources")
+
+    assert [s for s in sources if not {"id", "name", "filters"} <= s.keys()] == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_live_create_portal_idempotent_returns_same_uuid(
     live_portal_service: PortalService,
 ) -> None:
