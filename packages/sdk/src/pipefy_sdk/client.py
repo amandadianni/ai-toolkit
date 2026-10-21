@@ -2154,6 +2154,18 @@ class PipefyClient:
             page_id=page_id, element_id=element_id, content=content
         )
 
+    async def get_interface_html_guidelines(self) -> dict[str, Any]:
+        """Fetch the HTML/CSS rules and data-source filter format for ``customCode`` content.
+
+        Returns the allowed tags and attributes, every forbidden tag/attribute/CSS
+        construct with its violation code, the full error-code list, the
+        filter-tree format (a worked example plus the operators each field type
+        supports), content-size and nesting limits, and a ``design_system`` slot
+        reserved for a future per-org design system (``None`` today). The rules
+        are the same for every organization.
+        """
+        return await self._portal_service.get_interface_html_guidelines()
+
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent).
 
