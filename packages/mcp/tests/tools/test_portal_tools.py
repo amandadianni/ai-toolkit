@@ -356,11 +356,7 @@ async def test_get_interface_html_guidelines_success(
     assert payload["data"]["filters"]["knownOperators"][0]["filterType"] == "text"
 
 
-# Same shape as the Flow design-system catalog (name, version, components with
-# classes/examples), not a flat None: exercises the JSON pretty-print in
-# build_success_payload against nested data, including a component example whose
-# HTML carries embedded double quotes.
-_REALISTIC_DESIGN_SYSTEM = {
+_SAMPLE_DESIGN_SYSTEM = {
     "name": "Flow",
     "version": "0.1.0-alpha.17",
     "instructions": ["Use classes verbatim; never invent one."],
@@ -388,10 +384,10 @@ _REALISTIC_DESIGN_SYSTEM = {
 
 
 @pytest.mark.anyio
-async def test_get_interface_html_guidelines_round_trips_a_realistic_design_system(
+async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
     portal_session, mock_portal_client, extract_payload
 ):
-    guidelines = {**_HTML_GUIDELINES, "designSystem": _REALISTIC_DESIGN_SYSTEM}
+    guidelines = {**_HTML_GUIDELINES, "designSystem": _SAMPLE_DESIGN_SYSTEM}
     mock_portal_client.get_interface_html_guidelines = AsyncMock(
         return_value=guidelines
     )
@@ -402,14 +398,12 @@ async def test_get_interface_html_guidelines_round_trips_a_realistic_design_syst
     assert result.is_error is False
     payload = extract_payload(result)
     assert payload["success"] is True
-    assert payload["data"]["designSystem"] == _REALISTIC_DESIGN_SYSTEM
+    assert payload["data"]["designSystem"] == _SAMPLE_DESIGN_SYSTEM
     component = payload["data"]["designSystem"]["components"][0]
     assert component["examples"][0]["html"] == (
         '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
     )
-    # The pretty-printed result string must parse back to the same nested data,
-    # quotes inside the HTML example included.
-    assert json.loads(payload["result"])["designSystem"] == _REALISTIC_DESIGN_SYSTEM
+    assert json.loads(payload["result"])["designSystem"] == _SAMPLE_DESIGN_SYSTEM
 
 
 @pytest.mark.anyio

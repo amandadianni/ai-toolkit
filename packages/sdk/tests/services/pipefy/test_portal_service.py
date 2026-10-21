@@ -687,11 +687,7 @@ async def test_get_interface_html_guidelines_sends_no_variables() -> None:
     assert variables == {}
 
 
-# A realistic designSystem snapshot: same shape as the Flow catalog (name, version,
-# instructions, tokens, icons, components with classes/use/avoid/examples), not the
-# flat None used above. Nested deep enough to catch a JSON round-trip or truncation
-# bug that a null value never would.
-_REALISTIC_DESIGN_SYSTEM = {
+_SAMPLE_DESIGN_SYSTEM = {
     "name": "Flow",
     "version": "0.1.0-alpha.17",
     "instructions": [
@@ -750,18 +746,18 @@ _REALISTIC_DESIGN_SYSTEM = {
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_interface_html_guidelines_round_trips_a_realistic_design_system() -> (
+async def test_get_interface_html_guidelines_round_trips_a_sample_design_system() -> (
     None
 ):
-    """A nested, realistic designSystem (components, classes, examples) survives unchanged."""
-    guidelines = {**_HTML_GUIDELINES_GRAPHQL, "designSystem": _REALISTIC_DESIGN_SYSTEM}
+    """A nested sample designSystem (components, classes, examples) survives unchanged."""
+    guidelines = {**_HTML_GUIDELINES_GRAPHQL, "designSystem": _SAMPLE_DESIGN_SYSTEM}
     service, _public, _interfaces_executor = _make_interfaces_service(
         {"interfaceHtmlGuidelines": guidelines},
     )
 
     result = await service.get_interface_html_guidelines()
 
-    assert result["designSystem"] == _REALISTIC_DESIGN_SYSTEM
+    assert result["designSystem"] == _SAMPLE_DESIGN_SYSTEM
     assert result["designSystem"]["components"][0]["examples"][1]["html"] == (
         '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
     )
