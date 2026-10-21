@@ -126,6 +126,7 @@ def mock_portal_client():
     client = MagicMock(PipefyClient)
     client.list_portals = AsyncMock()
     client.get_portal = AsyncMock()
+    client.get_interface_html_guidelines = AsyncMock()
     client.create_portal = AsyncMock()
     client.update_portal = AsyncMock()
     client.delete_portal = AsyncMock()
@@ -301,6 +302,73 @@ async def test_get_portal_not_found_returns_error_envelope(
     payload = extract_payload(result)
     assert payload["success"] is False
     assert "not found" in tool_error_message(payload).lower()
+
+
+_HTML_GUIDELINES = {
+    "allowedTags": ["div", "span", "p"],
+    "forbiddenTags": [
+        {"code": "SCRIPT_FORBIDDEN", "message": "No <script>.", "subject": "script"}
+    ],
+    "forbiddenAttributes": [
+        {
+            "code": "ID_ATTRIBUTE_FORBIDDEN",
+            "message": "Use data-pfy-id.",
+            "subject": "id",
+        }
+    ],
+    "cssRules": [
+        {"code": "CSS_IMPORT_FORBIDDEN", "message": "No @import.", "subject": "@import"}
+    ],
+    "errorCodes": [
+        {"code": "TAG_NOT_ALLOWED", "description": "A tag outside allowedTags."}
+    ],
+    "filters": {
+        "description": "A filter is a tree.",
+        "example": {"id": "f1", "type": "root", "conjunction": "and", "filterSet": []},
+        "fixedColumnNames": ["title"],
+        "knownOperators": [{"filterType": "text", "operators": ["eq"]}],
+    },
+    "designSystem": None,
+    "maxContentBytes": 200000,
+    "maxNestingDepth": 398,
+    "maxAttributesPerElement": 400,
+}
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_success(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=_HTML_GUIDELINES
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with()
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert "result" in payload
+    assert payload["data"]["allowedTags"] == ["div", "span", "p"]
+    assert payload["data"]["filters"]["knownOperators"][0]["filterType"] == "text"
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_transport_error_returns_error_envelope(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        side_effect=TransportError("connection reset")
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is False
 
 
 @pytest.mark.anyio
