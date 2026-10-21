@@ -2124,6 +2124,12 @@ class PipefyClient:
 
         Args:
             interface_uuid: HTML interface UUID.
+
+        Raises:
+            PipefyGraphQLError: No interface has this uuid; the API answers a
+                missing uuid with an error.
+            ValueError: The interface is a grid interface, or the response has no
+                interface.
         """
         return await self._portal_service.get_html_interface(interface_uuid)
 

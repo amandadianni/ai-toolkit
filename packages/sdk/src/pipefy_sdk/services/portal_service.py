@@ -396,7 +396,10 @@ class PortalService:
             interface_uuid: HTML interface UUID.
 
         Raises:
-            ValueError: The interface is not found, or is a grid interface.
+            PipefyGraphQLError: No interface has this uuid; the API answers a
+                missing uuid with an error.
+            ValueError: The interface is a grid interface, or the response has no
+                interface.
         """
         data = await self.execute_interfaces_query(
             GET_HTML_INTERFACE_QUERY, {"uuid": interface_uuid}
