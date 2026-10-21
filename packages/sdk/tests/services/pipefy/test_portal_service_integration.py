@@ -29,7 +29,7 @@ from _shared.live_settings import (
 
 from pipefy_sdk import PipefyGraphQLError
 from pipefy_sdk.client import build_executors
-from pipefy_sdk.exceptions import PortalPermissionError
+from pipefy_sdk.exceptions import HtmlValidationError, PortalPermissionError
 from pipefy_sdk.services.portal_service import PortalService
 
 _PORTAL_ORG_SKIP = (
@@ -146,6 +146,61 @@ async def test_live_get_html_interface_round_trip_from_list(
         for page in detail["pages"]
         for element in page["elements"]
     )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_live_write_html_document_rejects_a_script_and_stores_nothing(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: invalid HTML raises its violations and leaves the live document as it was."""
+    org_uuid = _require_portal_org_uuid()
+
+    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
+    if not interfaces:
+        pytest.skip(f"No HTML interface found for org {org_uuid}")
+    interface_uuid = interfaces[0]["uuid"]
+    before = await live_portal_service.get_html_interface(interface_uuid)
+    target = next(
+        (
+            (page["id"], element)
+            for page in before["pages"]
+            for element in page["elements"]
+            if element["type"] == "customCode"
+        ),
+        None,
+    )
+    if target is None:
+        pytest.skip("First HTML interface has no customCode element")
+    page_id, element = target
+
+    try:
+        await live_portal_service.write_html_document(
+            page_id=page_id, element_id=element["id"], content="<script></script>"
+        )
+    except HtmlValidationError as exc:
+        violation_codes = {v.code for v in exc.violations}
+    except PortalPermissionError:
+        pytest.skip(f"Token cannot update HTML interface {interface_uuid}")
+    else:
+        if element["htmlDocument"] is not None:
+            await live_portal_service.write_html_document(
+                page_id=page_id,
+                element_id=element["id"],
+                content=element["htmlDocument"]["content"],
+            )
+        pytest.fail(
+            "The API stored <script></script>; the previous document was restored if there was one"
+        )
+
+    assert "SCRIPT_FORBIDDEN" in violation_codes
+    after = await live_portal_service.get_html_interface(interface_uuid)
+    stored = {
+        candidate["id"]: candidate["htmlDocument"]
+        for page in after["pages"]
+        for candidate in page["elements"]
+    }[element["id"]]
+    assert stored == element["htmlDocument"]
 
 
 @pytest.mark.integration
