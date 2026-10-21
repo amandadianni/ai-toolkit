@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -353,6 +354,62 @@ async def test_get_interface_html_guidelines_success(
     assert "result" in payload
     assert payload["data"]["allowedTags"] == ["div", "span", "p"]
     assert payload["data"]["filters"]["knownOperators"][0]["filterType"] == "text"
+
+
+# Same shape as the Flow design-system catalog (name, version, components with
+# classes/examples), not a flat None: exercises the JSON pretty-print in
+# build_success_payload against nested data, including a component example whose
+# HTML carries embedded double quotes.
+_REALISTIC_DESIGN_SYSTEM = {
+    "name": "Flow",
+    "version": "0.1.0-alpha.17",
+    "instructions": ["Use classes verbatim; never invent one."],
+    "tokens": ["--background", "--foreground"],
+    "icons": ["arrow-down", "check"],
+    "components": [
+        {
+            "name": "button",
+            "category": "Primitives",
+            "classes": ["cn-button-variant-default", "cn-button-variant-destructive"],
+            "use": ["Actions that change something."],
+            "avoid": ["An icon button without aria-label."],
+            "examples": [
+                {
+                    "title": "Destructive",
+                    "html": (
+                        '<button class="cn-button-variant-destructive" '
+                        'aria-label="Delete record">Delete</button>'
+                    ),
+                },
+            ],
+        },
+    ],
+}
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_round_trips_a_realistic_design_system(
+    portal_session, mock_portal_client, extract_payload
+):
+    guidelines = {**_HTML_GUIDELINES, "designSystem": _REALISTIC_DESIGN_SYSTEM}
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=guidelines
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert payload["data"]["designSystem"] == _REALISTIC_DESIGN_SYSTEM
+    component = payload["data"]["designSystem"]["components"][0]
+    assert component["examples"][0]["html"] == (
+        '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
+    )
+    # The pretty-printed result string must parse back to the same nested data,
+    # quotes inside the HTML example included.
+    assert json.loads(payload["result"])["designSystem"] == _REALISTIC_DESIGN_SYSTEM
 
 
 @pytest.mark.anyio
