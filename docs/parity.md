@@ -2,7 +2,7 @@
 
 This matrix is the source of truth for **MCP tool ↔ `pipefy` CLI** coverage. Update it whenever MCP tools or CLI commands are added, renamed, or removed.
 
-**Registry source:** `PIPEFY_TOOL_NAMES` in `packages/mcp/src/pipefy_mcp/tools/registry.py` (must stay in sync with this table: **188** tools).
+**Registry source:** `PIPEFY_TOOL_NAMES` in `packages/mcp/src/pipefy_mcp/tools/registry.py` (must stay in sync with this table: **189** tools).
 
 **Later CLI coverage:** areas such as attachments, field conditions, email, audit export, traditional automations, exports/usage, introspection, and raw GraphQL appear as **shipped** below when the matching Typer commands exist in `packages/cli`.
 
@@ -149,6 +149,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `get_pipe_report_columns` | `pipefy report-pipe columns` | shipped | Reports domain. |
 | `get_pipe_report_export` | (poll via `pipefy report-pipe export --format json`) | shipped | Reports + exports. |
 | `get_pipe_report_filterable_fields` | `pipefy report-pipe filterable-fields` | shipped | Reports domain. |
+| `get_interface_html_guidelines` | — | deferred | Interfaces schema; read-only, no argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. MCP-first; CLI twin considered alongside `write_interface_html`. |
 | `get_pipe_reports` | `pipefy report-pipe list` | shipped | Reports domain. |
 | `get_portal` | `pipefy portal get` | shipped | Interfaces schema; read-only; includes `published`. |
 | `get_records` | `pipefy card records` | shipped | Lists, counts and filters the cards of a pipe (``--pipe``, ``--where`` JSON filter, ``--search-term``, ``--phase``, ``--order-by`` JSON, ``--include-fields``, ``--first`` 1 to 50 / ``--after``). For a count, pass ``--first 1`` and read ``totalCount``. |
