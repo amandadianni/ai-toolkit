@@ -141,6 +141,7 @@ PIPEFY_TOOL_NAMES = frozenset(
         "get_card_relations",
         "get_cards",
         "get_email_templates",
+        "get_interface_html_guidelines",
         "get_ipaas_connection_auth_url",
         "get_ipaas_tools",
         "get_labels",

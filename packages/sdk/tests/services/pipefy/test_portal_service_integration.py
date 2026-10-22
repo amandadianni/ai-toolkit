@@ -117,6 +117,39 @@ async def test_live_list_portals_returns_list_shape(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_live_get_interface_html_guidelines_returns_the_full_shape(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: get_interface_html_guidelines returns every documented field.
+
+    Needs the interfaceHtmlGuidelines query live on the target backend; skips if
+    it is not deployed yet there.
+    """
+    try:
+        guidelines = await live_portal_service.get_interface_html_guidelines()
+    except PipefyGraphQLError as exc:
+        if "interfaceHtmlGuidelines" not in str(exc) or "doesn't exist" not in str(exc):
+            raise
+        pytest.skip(f"interfaceHtmlGuidelines not available on this backend: {exc}")
+
+    for key in (
+        "allowedTags",
+        "forbiddenTags",
+        "forbiddenAttributes",
+        "cssRules",
+        "errorCodes",
+        "filters",
+        "maxContentBytes",
+        "maxNestingDepth",
+        "maxAttributesPerElement",
+    ):
+        assert key in guidelines
+    assert guidelines["filters"]["example"]
+    assert guidelines["filters"]["knownOperators"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_live_get_portal_round_trip_from_list(
     live_portal_service: PortalService,
 ) -> None:

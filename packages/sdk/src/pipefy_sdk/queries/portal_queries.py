@@ -197,6 +197,55 @@ GET_INTERFACE_REPO_FIELDS_QUERY = gql(
     """
 )
 
+GET_INTERFACE_HTML_GUIDELINES_QUERY = gql(
+    """
+    query GetInterfaceHtmlGuidelines {
+        interfaceHtmlGuidelines {
+            allowedAttributePrefixes
+            allowedDataAttributes
+            allowedDataPfyAttributes
+            allowedPlainAttributes
+            allowedTags
+            authoringNotes
+            cssRules {
+                code
+                message
+                subject
+            }
+            designSystem
+            errorCodes {
+                code
+                description
+            }
+            filters {
+                description
+                example
+                fixedColumnNames
+                knownOperators {
+                    filterType
+                    operators
+                }
+            }
+            forbiddenAttributes {
+                code
+                message
+                subject
+            }
+            forbiddenTags {
+                code
+                message
+                subject
+            }
+            linkAttributes
+            maxAttributesPerElement
+            maxContentBytes
+            maxNestingDepth
+            urlRule
+        }
+    }
+    """
+)
+
 FIND_OR_CREATE_PORTAL_MUTATION = gql(
     """
     mutation FindOrCreatePortal($input: InterfaceCreateByTemplateMutationInput!) {
@@ -382,6 +431,7 @@ __all__ = [
     "DUPLICATE_ELEMENT_MUTATION",
     "FIND_OR_CREATE_PORTAL_MUTATION",
     "GET_HTML_INTERFACE_QUERY",
+    "GET_INTERFACE_HTML_GUIDELINES_QUERY",
     "GET_INTERFACE_REPO_FIELDS_QUERY",
     "GET_PORTAL_QUERY",
     "LIST_INTERFACE_REPOS_QUERY",

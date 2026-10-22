@@ -46,6 +46,7 @@ from pipefy_sdk.queries.portal_queries import (
     DUPLICATE_ELEMENT_MUTATION,
     FIND_OR_CREATE_PORTAL_MUTATION,
     GET_HTML_INTERFACE_QUERY,
+    GET_INTERFACE_HTML_GUIDELINES_QUERY,
     GET_INTERFACE_REPO_FIELDS_QUERY,
     GET_PORTAL_QUERY,
     LIST_INTERFACE_REPOS_QUERY,
@@ -727,6 +728,17 @@ class PortalService:
         return _with_uuid_alias(
             {"id": element_id, "dataSources": sources.model_dump(by_alias=True)}
         )
+
+    async def get_interface_html_guidelines(self) -> dict[str, Any]:
+        """Fetch the HTML/CSS rules and data-source filter format for ``customCode`` content.
+
+        The rules are the same for every organization, so the query takes no
+        argument.
+        """
+        data = await self.execute_interfaces_query(
+            GET_INTERFACE_HTML_GUIDELINES_QUERY, {}
+        )
+        return data["interfaceHtmlGuidelines"]
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).

@@ -130,6 +130,34 @@ class PortalTools:
             return build_success_payload(portal, include_parsed=True)
 
         @mcp.tool(
+            annotations=ToolAnnotations(readOnlyHint=True),
+            meta=REMOTE,
+        )
+        async def get_interface_html_guidelines(ctx: Context) -> dict[str, Any]:
+            """Fetch the HTML/CSS rules and data-source filter format for customCode content.
+
+            Call this before writing an HTML interface's customCode element.
+            Returns every allowed tag and attribute, every forbidden
+            tag/attribute/CSS construct with its violation code, the full
+            error-code list, the filter-tree
+            format (a worked example plus the operators each field type supports),
+            content-size and nesting limits, and a ``designSystem`` snapshot: a
+            component catalog (tokens, icons and components with usage examples)
+            to style generated content consistently. The rules are the same for
+            every organization. The response includes both ``result``
+            (pretty-printed JSON string) and ``data`` (parsed dict) for convenience.
+            """
+            client = get_pipefy_client(ctx)
+            await ctx.debug("get_interface_html_guidelines")
+            try:
+                guidelines = await client.get_interface_html_guidelines()
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
+                )
+            return build_success_payload(guidelines, include_parsed=True)
+
+        @mcp.tool(
             annotations=ToolAnnotations(readOnlyHint=False),
             meta=REMOTE,
         )
