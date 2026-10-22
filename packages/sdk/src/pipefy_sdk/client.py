@@ -2218,7 +2218,9 @@ class PipefyClient:
             interface_uuid: HTML interface holding the page.
 
         Returns:
-            The element ``id`` (and ``uuid``) and the ``dataSources`` set.
+            The element ``id`` (and ``uuid``) and the ``dataSources`` as sent, once
+            the update reports success; they are not read back. Call
+            ``get_html_interface`` for the stored sources.
 
         Raises:
             pydantic.ValidationError: ``data_sources`` breaks a source rule; nothing

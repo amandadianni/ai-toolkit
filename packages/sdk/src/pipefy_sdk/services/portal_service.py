@@ -691,8 +691,10 @@ class PortalService:
             interface_uuid: HTML interface holding the page.
 
         Returns:
-            The element ``id`` (and ``uuid``) and the ``dataSources`` set, each with
-            ``filters`` as an object or ``None``.
+            The element ``id`` (and ``uuid``) and the ``dataSources`` as parsed and
+            sent, each with ``filters`` as an object or ``None``. This echoes the
+            input once ``updateElement`` reports success; it is not read back. Call
+            ``get_html_interface`` for the stored sources.
 
         Raises:
             pydantic.ValidationError: ``data_sources`` breaks a source rule; nothing
