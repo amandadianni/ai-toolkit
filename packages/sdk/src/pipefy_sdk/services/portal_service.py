@@ -568,7 +568,7 @@ class PortalService:
 
         A custom field's data source key is its ``uuid``. The built-in keys (such
         as ``title``, ``created_at`` and ``current_phase_id``) are not fields of
-        the repo: ``interfaceHtmlGuidelines`` lists them as
+        the repo: ``get_interface_html_guidelines`` lists them as
         ``filters.fixedColumnNames``.
 
         Args:

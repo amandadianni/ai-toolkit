@@ -2183,7 +2183,8 @@ class PipefyClient:
         """List a pipe's or table's custom fields, for an interface data source.
 
         A custom field's data source key is its ``uuid``. The built-in keys (such
-        as ``title``) come from ``interfaceHtmlGuidelines`` ``filters.fixedColumnNames``.
+        as ``title``) come from ``get_interface_html_guidelines``, as
+        ``filters.fixedColumnNames``.
 
         Args:
             repo_uuid: The repo's uuid, as ``list_interface_repos`` returns it.

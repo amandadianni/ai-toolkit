@@ -325,7 +325,7 @@ class InterfaceDataSource(BaseModel):
     ``id`` is the handle the element's HTML reads the source by and ``name`` its
     label; both are unique within the element. ``field_keys`` lists custom field
     uuids and built-in keys such as ``title``. ``filters`` is a filter tree, as
-    ``interfaceHtmlGuidelines`` describes it, or ``None``. A source read from
+    ``get_interface_html_guidelines`` describes it, or ``None``. A source read from
     ``get_html_interface`` can be passed back as read: ``repoName`` and ``repoType``
     are dropped, and ``filters`` read as a JSON string is decoded.
     """
