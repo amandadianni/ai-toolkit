@@ -47,6 +47,7 @@ from pipefy_sdk.models.knowledge_base import DataLookupCondition
 from pipefy_sdk.models.member_invite import MemberInvite
 from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
+    InterfaceDataSource,
     UpdatePortalElementInput,
 )
 from pipefy_sdk.models.send_task_automation import CreateSendTaskAutomationInput
@@ -83,6 +84,7 @@ __all__ = [
     "FieldTypeId",
     "InboxEmailDraft",
     "FieldMapInput",
+    "InterfaceDataSource",
     "MemberInvite",
     "NonBlankStr",
     "PipefyId",

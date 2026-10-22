@@ -10,9 +10,13 @@ from unittest.mock import call as mock_call
 
 import pytest
 from _shared.fixture_ids import (
+    EXAMPLE_FIELD_INTERNAL_ID,
     EXAMPLE_NUMERIC_ORG_ID,
     EXAMPLE_ORG_UUID,
     EXAMPLE_OTHER_ORG_UUID,
+    EXAMPLE_PHASE_ID,
+    EXAMPLE_PIPE_ID,
+    EXAMPLE_PIPE_ID_2,
     EXAMPLE_PIPE_REPO_ID,
 )
 from _shared.mock_clients import mock_executor
@@ -25,14 +29,17 @@ from pipefy_sdk.exceptions import (
     PortalPermissionError,
 )
 from pipefy_sdk.graphql_executor import PipefyGraphQLError
-from pipefy_sdk.models.portal import parse_portal_page_layout
+from pipefy_sdk.models.portal import InterfaceDataSource, parse_portal_page_layout
 from pipefy_sdk.queries.observability_queries import RESOLVE_ORGANIZATION_UUID_QUERY
 from pipefy_sdk.queries.portal_queries import (
     GET_HTML_INTERFACE_QUERY,
     GET_INTERFACE_HTML_GUIDELINES_QUERY,
+    GET_INTERFACE_REPO_FIELDS_QUERY,
     GET_PORTAL_QUERY,
+    LIST_INTERFACE_REPOS_QUERY,
     LIST_INTERFACES_QUERY,
     LIST_PORTALS_QUERY,
+    UPDATE_ELEMENT_MUTATION,
     WRITE_HTML_DOCUMENT_MUTATION,
 )
 from pipefy_sdk.services.portal_service import PortalService
@@ -670,6 +677,197 @@ async def test_get_html_interface_rejects_grid_interface(
 
     with pytest.raises(ValueError, match="not an HTML interface.*get_portal"):
         await service.get_html_interface("html-uuid-1")
+
+
+def _interface_repos_page(nodes, *, has_next_page=False, end_cursor=None):
+    """One ``interfaceRepos`` connection page."""
+    return {
+        "interfaceRepos": {
+            "edges": [{"node": node} for node in nodes],
+            "pageInfo": {"hasNextPage": has_next_page, "endCursor": end_cursor},
+        }
+    }
+
+
+_REQUESTS_REPO_NODE = {
+    "id": EXAMPLE_PIPE_ID,
+    "uuid": "repo-uuid-1",
+    "suid": "Ab12Cd34",
+    "name": "Purchase requests",
+    "type": "Pipe",
+    "icon": "cart",
+    "color": "blue",
+    "noun": "Request",
+}
+
+_SUPPLIERS_REPO_NODE = {
+    **_REQUESTS_REPO_NODE,
+    "id": EXAMPLE_PIPE_ID_2,
+    "uuid": "repo-uuid-2",
+    "name": "Suppliers",
+    "type": "Table",
+}
+
+_LIST_INTERFACE_REPOS_VARIABLES = {"orgId": EXAMPLE_NUMERIC_ORG_ID, "first": 50}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_interface_repos_returns_the_repo_nodes() -> None:
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        _interface_repos_page([_REQUESTS_REPO_NODE, _SUPPLIERS_REPO_NODE]),
+    )
+
+    result = await service.list_interface_repos(EXAMPLE_NUMERIC_ORG_ID)
+
+    assert result == [_REQUESTS_REPO_NODE, _SUPPLIERS_REPO_NODE]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("organization_id", "filters", "sent_filters"),
+    [
+        (int(EXAMPLE_NUMERIC_ORG_ID), {}, {}),
+        (f" {EXAMPLE_NUMERIC_ORG_ID} ", {}, {}),
+        (
+            EXAMPLE_NUMERIC_ORG_ID,
+            {"interface_uuid": "html-uuid-1", "repo_name": "purchase"},
+            {"interfaceUuid": "html-uuid-1", "repoName": "purchase"},
+        ),
+    ],
+)
+async def test_list_interface_repos_sends_the_numeric_org_id_and_given_filters(
+    organization_id: str | int, filters: dict, sent_filters: dict
+) -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _interface_repos_page([]),
+    )
+
+    await service.list_interface_repos(organization_id, **filters)
+
+    interfaces_executor.execute_query.assert_awaited_once_with(
+        LIST_INTERFACE_REPOS_QUERY, {**_LIST_INTERFACE_REPOS_VARIABLES, **sent_filters}
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_list_interface_repos_follows_the_cursor_to_later_pages() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        _interface_repos_page(
+            [_REQUESTS_REPO_NODE], has_next_page=True, end_cursor="cursor-1"
+        ),
+        _interface_repos_page([_SUPPLIERS_REPO_NODE]),
+    ]
+
+    result = await service.list_interface_repos(EXAMPLE_NUMERIC_ORG_ID)
+
+    assert result == [_REQUESTS_REPO_NODE, _SUPPLIERS_REPO_NODE]
+    assert interfaces_executor.execute_query.await_args_list == [
+        mock_call(LIST_INTERFACE_REPOS_QUERY, _LIST_INTERFACE_REPOS_VARIABLES),
+        mock_call(
+            LIST_INTERFACE_REPOS_QUERY,
+            {**_LIST_INTERFACE_REPOS_VARIABLES, "after": "cursor-1"},
+        ),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "organization_id", [EXAMPLE_ORG_UUID, "", "  ", "org-1", "\u0661\u0662", True]
+)
+async def test_list_interface_repos_rejects_a_non_numeric_org_id(
+    organization_id: str,
+) -> None:
+    """The listing takes the numeric organization id; anything else fails before a call."""
+    service, public_executor, interfaces_executor = _make_interfaces_service(
+        _interface_repos_page([]),
+    )
+
+    with pytest.raises(ValueError, match="numeric organization id"):
+        await service.list_interface_repos(organization_id)
+
+    interfaces_executor.execute_query.assert_not_awaited()
+    public_executor.execute_query.assert_not_awaited()
+
+
+_REPO_FIELD = {
+    "id": EXAMPLE_FIELD_INTERNAL_ID,
+    "uuid": "6a850d1c-0000-4000-8000-000000000016",
+    "label": "Amount",
+    "type": "currency",
+    "phaseId": EXAMPLE_PHASE_ID,
+    "archived": False,
+    "required": True,
+    "options": None,
+    "description": None,
+    "helpText": None,
+    "connectedRepoId": None,
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_interface_repo_fields_returns_the_repo_fields() -> None:
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"interfacesRepoStructure": {"fields": [_REPO_FIELD]}},
+    )
+
+    result = await service.get_interface_repo_fields("repo-uuid-1")
+
+    assert result == [_REPO_FIELD]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("interface_uuid", "sent"),
+    [
+        (None, {"repoId": "repo-uuid-1"}),
+        ("html-uuid-1", {"repoId": "repo-uuid-1", "interfaceId": "html-uuid-1"}),
+    ],
+)
+async def test_get_interface_repo_fields_sends_the_repo_and_given_interface(
+    interface_uuid: str | None, sent: dict
+) -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"interfacesRepoStructure": {"fields": []}},
+    )
+
+    await service.get_interface_repo_fields(
+        "repo-uuid-1", interface_uuid=interface_uuid
+    )
+
+    interfaces_executor.execute_query.assert_awaited_once_with(
+        GET_INTERFACE_REPO_FIELDS_QUERY, sent
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_interface_repo_fields_no_structure_raises_value_error() -> None:
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"interfacesRepoStructure": None},
+    )
+
+    with pytest.raises(ValueError, match="repo-uuid-1"):
+        await service.get_interface_repo_fields("repo-uuid-1")
+
+
+def _selected_fields(query, *path: str) -> set[str]:
+    """Names selected under ``path`` below the operation's root field."""
+    node = query.document.definitions[0].selection_set.selections[0]
+    for name in path:
+        node = next(f for f in node.selection_set.selections if f.name.value == name)
+    return {field.name.value for field in node.selection_set.selections}
+
+
+def test_get_interface_repo_fields_selects_the_field_uuid():
+    """A custom field's data source key is its uuid, so the read must return it."""
+    assert "uuid" in _selected_fields(GET_INTERFACE_REPO_FIELDS_QUERY, "fields")
 
 
 @pytest.mark.unit
@@ -1773,6 +1971,103 @@ async def test_update_portal_element_keep_path_sends_given_editable() -> None:
     ]
 
 
+_OPEN_FILTER = {
+    "id": "root",
+    "type": "root",
+    "conjunction": "and",
+    "filterSet": [
+        {"id": "leaf", "columnName": "title", "operator": "not_empty", "value": None}
+    ],
+}
+_OPEN_FILTER_JSON = (
+    '{"id":"root","type":"root","conjunction":"and","filterSet":'
+    '[{"id":"leaf","columnName":"title","operator":"not_empty","value":null}]}'
+)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_update_portal_element_keep_path_resends_source_id_name_and_filters() -> (
+    None
+):
+    """A kept source goes back with its handle, label and filters, as the API read them."""
+    stored_source = {
+        "id": "open-requests",
+        "name": "Open requests",
+        "filters": _OPEN_FILTER_JSON,
+        "repoId": EXAMPLE_PIPE_REPO_ID,
+        "repoName": "Requests",
+        "repoType": "Pipe",
+        "fieldKeys": ["title"],
+    }
+    portal = _portal_with_forms_element()
+    target = portal["portalInterface"]["pages"][1]["elements"][1]
+    target["dataSources"] = [stored_source]
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        portal,
+        {"updateElement": {"success": True}},
+    ]
+
+    await service.update_portal_element(
+        _ELEMENT_ID,
+        _PAGE_ID,
+        type="forms",
+        metadata=_FORMS_METADATA,
+        portal_uuid=_PORTAL_UUID,
+    )
+
+    variables = interfaces_executor.execute_query.call_args[0][1]
+    assert variables["input"]["data_sources"] == [
+        {
+            "id": "open-requests",
+            "name": "Open requests",
+            "filters": _OPEN_FILTER_JSON,
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "fieldKeys": ["title"],
+        }
+    ]
+
+
+_OPEN_REQUESTS_HANDLE = {
+    "id": "open-requests",
+    "name": "Open requests",
+    "repoId": EXAMPLE_PIPE_REPO_ID,
+    "fieldKeys": ["title"],
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("filters", "sent_filters"),
+    [
+        (_OPEN_FILTER, {"filters": _OPEN_FILTER_JSON}),
+        (None, {}),
+    ],
+    ids=["object sent as Interfaces Json", "null not sent"],
+)
+async def test_update_portal_element_sends_given_source_handle_and_filters(
+    filters: dict | None, sent_filters: dict
+) -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"updateElement": {"success": True}},
+    )
+
+    await service.update_portal_element(
+        _ELEMENT_ID,
+        _PAGE_ID,
+        type="forms",
+        metadata=_FORMS_METADATA,
+        data_sources=[{**_OPEN_REQUESTS_HANDLE, "filters": filters}],
+    )
+
+    variables = interfaces_executor.execute_query.call_args[0][1]
+    assert variables["input"]["data_sources"] == [
+        {**_OPEN_REQUESTS_HANDLE, **sent_filters}
+    ]
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_update_portal_element_requires_data_sources_or_portal_uuid() -> None:
@@ -2301,6 +2596,9 @@ def test_get_portal_selects_element_data_sources_and_editable():
         if field.name.value == "dataSources"
     )
     assert {field.name.value for field in data_sources.selection_set.selections} >= {
+        "id",
+        "name",
+        "filters",
         "repoId",
         "fieldKeys",
     }
@@ -2506,3 +2804,258 @@ async def test_write_html_document_keeps_the_api_error_without_usable_violations
         await _write_sales_heading(service)
 
     assert exc_info.value is graphql_error
+
+
+_HTML_PAGE_ID = "html-page-uuid-1"
+_HTML_ELEMENT_ID = "html-element-uuid-1"
+_HTML_ELEMENT_METADATA = {"name": "Requests board"}
+_REQUEST_AMOUNT_FIELD_UUID = "6a850d1c-0000-4000-8000-000000000016"
+_OPEN_REQUESTS_SOURCE = {
+    "id": "open-requests",
+    "name": "Open requests",
+    "repoId": EXAMPLE_PIPE_REPO_ID,
+    "fieldKeys": ["title", _REQUEST_AMOUNT_FIELD_UUID],
+    "filters": _OPEN_FILTER,
+}
+_ALL_SUPPLIERS_SOURCE = {
+    "id": "all-suppliers",
+    "name": "All suppliers",
+    "repoId": "repo-uuid-2",
+    "fieldKeys": ["title"],
+}
+
+
+def _html_interface_with_custom_code(
+    *, editable: bool = False, element_type: str = "customCode"
+) -> dict:
+    """``interface`` payload: the target on its page, after a sibling on another page."""
+    return {
+        "interface": {
+            "id": "html-uuid-1",
+            "name": "Requests",
+            "visibility": "internal",
+            "contentModeHtml": True,
+            "pages": [
+                {
+                    "id": _PAGE_ID_2,
+                    "title": "Other",
+                    "elements": [
+                        {
+                            "id": "sibling-element",
+                            "type": "customCode",
+                            "metadata": {"name": "Other"},
+                            "editable": not editable,
+                            "dataSources": [],
+                            "htmlDocument": None,
+                        }
+                    ],
+                },
+                {
+                    "id": _HTML_PAGE_ID,
+                    "title": "Requests",
+                    "elements": [
+                        {
+                            "id": _HTML_ELEMENT_ID,
+                            "type": element_type,
+                            "metadata": _HTML_ELEMENT_METADATA,
+                            "editable": editable,
+                            "dataSources": [],
+                            "htmlDocument": None,
+                        }
+                    ],
+                },
+            ],
+        }
+    }
+
+
+_UPDATE_SUCCEEDED = {"updateElement": {"success": True}}
+
+
+def _set_sources_service(
+    read: dict, update: dict | Exception = _UPDATE_SUCCEEDED
+) -> tuple[PortalService, MagicMock]:
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [read, update]
+    return service, interfaces_executor
+
+
+def _sent_update_input(interfaces_executor: MagicMock) -> dict:
+    """The ``input`` of the ``updateElement`` call, the last one sent."""
+    return interfaces_executor.execute_query.await_args_list[-1].args[1]["input"]
+
+
+async def _set_open_requests_and_suppliers(service: PortalService) -> dict:
+    return await service.set_interface_sources(
+        _HTML_PAGE_ID,
+        _HTML_ELEMENT_ID,
+        [_OPEN_REQUESTS_SOURCE, _ALL_SUPPLIERS_SOURCE],
+        interface_uuid="html-uuid-1",
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored_editable", [False, True])
+async def test_set_interface_sources_replaces_sources_keeping_metadata_and_editable(
+    stored_editable: bool,
+) -> None:
+    """The API fails a write with field keys and no editable, so the flag goes back."""
+    service, interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code(editable=stored_editable)
+    )
+
+    await _set_open_requests_and_suppliers(service)
+
+    assert interfaces_executor.execute_query.await_args_list == [
+        mock_call(GET_HTML_INTERFACE_QUERY, {"uuid": "html-uuid-1"}),
+        mock_call(
+            UPDATE_ELEMENT_MUTATION,
+            {
+                "input": {
+                    "element_id": _HTML_ELEMENT_ID,
+                    "page_id": _HTML_PAGE_ID,
+                    "metadata": '{"name":"Requests board"}',
+                    "editable": stored_editable,
+                    "data_sources": [
+                        {**_OPEN_REQUESTS_SOURCE, "filters": _OPEN_FILTER_JSON},
+                        _ALL_SUPPLIERS_SOURCE,
+                    ],
+                }
+            },
+        ),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_takes_parsed_sources() -> None:
+    service, interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    await service.set_interface_sources(
+        _HTML_PAGE_ID,
+        _HTML_ELEMENT_ID,
+        [InterfaceDataSource.model_validate(_ALL_SUPPLIERS_SOURCE)],
+        interface_uuid="html-uuid-1",
+    )
+
+    assert _sent_update_input(interfaces_executor)["data_sources"] == [
+        _ALL_SUPPLIERS_SOURCE
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_returns_the_source_handles_set() -> None:
+    service, _interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    result = await _set_open_requests_and_suppliers(service)
+
+    assert result == {
+        "id": _HTML_ELEMENT_ID,
+        "uuid": _HTML_ELEMENT_ID,
+        "dataSources": [
+            _OPEN_REQUESTS_SOURCE,
+            {**_ALL_SUPPLIERS_SOURCE, "filters": None},
+        ],
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_empty_list_removes_every_source() -> None:
+    service, interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    await service.set_interface_sources(
+        _HTML_PAGE_ID, _HTML_ELEMENT_ID, [], interface_uuid="html-uuid-1"
+    )
+
+    assert _sent_update_input(interfaces_executor)["data_sources"] == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_rejects_invalid_sources_before_any_call() -> None:
+    service, interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    with pytest.raises(ValidationError, match="own id"):
+        await service.set_interface_sources(
+            _HTML_PAGE_ID,
+            _HTML_ELEMENT_ID,
+            [_OPEN_REQUESTS_SOURCE, {**_ALL_SUPPLIERS_SOURCE, "id": "open-requests"}],
+            interface_uuid="html-uuid-1",
+        )
+
+    interfaces_executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("page_id", "element_id", "element_type", "message"),
+    [
+        (_PAGE_ID_2, _HTML_ELEMENT_ID, "customCode", f"page_id='{_HTML_PAGE_ID}'"),
+        (
+            _HTML_PAGE_ID,
+            "missing-element",
+            "customCode",
+            "no page of interface 'html-uuid-1'",
+        ),
+        (_HTML_PAGE_ID, _HTML_ELEMENT_ID, "table", "customCode element"),
+    ],
+    ids=["on another page", "on no page", "not customCode"],
+)
+async def test_set_interface_sources_wrong_element_reads_but_sends_no_update(
+    page_id: str, element_id: str, element_type: str, message: str
+) -> None:
+    service, interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code(element_type=element_type)
+    )
+
+    with pytest.raises(ValueError, match=message):
+        await service.set_interface_sources(
+            page_id, element_id, [_ALL_SUPPLIERS_SOURCE], interface_uuid="html-uuid-1"
+        )
+
+    interfaces_executor.execute_query.assert_awaited_once_with(
+        GET_HTML_INTERFACE_QUERY, {"uuid": "html-uuid-1"}
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_unsuccessful_update_raises_value_error() -> None:
+    service, _interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code(), {"updateElement": {"success": False}}
+    )
+
+    with pytest.raises(ValueError, match="success=false"):
+        await _set_open_requests_and_suppliers(service)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_set_interface_sources_permission_denied_raises_portal_permission_error() -> (
+    None
+):
+    service, _interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code(), _PERMISSION_DENIED_ERROR
+    )
+
+    with pytest.raises(PortalPermissionError):
+        await _set_open_requests_and_suppliers(service)
+
+
+def test_get_html_interface_selects_element_metadata_and_editable():
+    """set_interface_sources sends both back, since the update replaces them."""
+    assert {"metadata", "editable"} <= _selected_fields(
+        GET_HTML_INTERFACE_QUERY, "pages", "elements"
+    )
