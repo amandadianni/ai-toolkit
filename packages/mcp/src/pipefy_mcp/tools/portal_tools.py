@@ -191,7 +191,7 @@ class PortalTools:
             A successful listing does not show that the interface exists: an
             unknown ``interface_uuid`` is listed like an interface that is not a
             portal, and an organization you cannot see lists nothing, both without
-            an error. Confirm the interface with ``get_html_interface``.
+            an error. Confirm the interface with ``get_interface_html``.
 
             Args:
                 organization_id: Numeric organization id (``list_organizations``
@@ -304,7 +304,7 @@ class PortalTools:
 
             At most 10 sources. Returns the element ``uuid`` and the
             ``dataSources`` as sent, once the update reports success; they are not
-            read back. Call ``get_html_interface`` for the stored sources.
+            read back. Call ``get_interface_html`` for the stored sources.
 
             Args:
                 interface_uuid: The HTML interface's uuid.
