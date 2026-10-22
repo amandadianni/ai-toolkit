@@ -10,11 +10,13 @@ from pipefy_sdk import PipefyId
 from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     DeletePortalElementInput,
+    InterfaceDataSources,
     PortalElementType,
     PortalVisibility,
     UpdatePortalElementInput,
     parse_portal_page_layout,
 )
+from pipefy_sdk.utils.organization_identifiers import numeric_organization_id
 from pydantic import ValidationError
 
 from pipefy_mcp.core.tool_error_envelope import tool_error
@@ -25,6 +27,8 @@ from pipefy_mcp.tools.introspection_tool_helpers import (
 )
 from pipefy_mcp.tools.portal_tool_helpers import (
     finalize_internal_api_mutation,
+    interface_sources_validation_error,
+    map_interface_source_error_to_message,
     map_portal_error_to_message,
     plan_portal_element_delete_confirmation,
     portal_element_validation_error,
@@ -36,9 +40,19 @@ from pipefy_mcp.tools.portal_tool_helpers import (
 )
 from pipefy_mcp.tools.remote_profile import REMOTE
 from pipefy_mcp.tools.tool_context import get_pipefy_client
-from pipefy_mcp.tools.validation_helpers import validate_tool_id
+from pipefy_mcp.tools.validation_helpers import (
+    validate_optional_tool_id,
+    validate_tool_id,
+)
 
 _PORTAL_READ_FAILED = "Portal request failed."
+
+
+def _repo_fields_not_found_message(repo_uuid: str, interface_uuid: str | None) -> str:
+    missing = f"No repo has uuid '{repo_uuid}'"
+    if interface_uuid is not None:
+        missing += f", or no interface has uuid '{interface_uuid}'"
+    return f"{missing}. list_interface_repos lists the repos an interface can read."
 
 
 class PortalTools:
@@ -156,6 +170,180 @@ class PortalTools:
                     map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
                 )
             return build_success_payload(guidelines, include_parsed=True)
+
+        @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+        async def list_interface_repos(
+            ctx: Context,
+            organization_id: PipefyId,
+            interface_uuid: str | None = None,
+            repo_name: str | None = None,
+        ) -> dict[str, Any]:
+            """List the pipes and tables an HTML interface can take as data sources.
+
+            Step one of declaring a source: pick a repo here, its fields with
+            ``get_interface_repo_fields``, then set the sources with
+            ``set_interface_sources``. Configure sources before writing the HTML
+            that reads them. For an interface that is not a portal, the list holds
+            the published pipes and tables you administer, ordered by name. Each
+            repo has ``uuid`` (a source's ``repoId``), ``name``, ``type`` (``Pipe``
+            or ``Table``), ``id``, ``suid``, ``icon``, ``color`` and ``noun``.
+
+            A successful listing does not show that the interface exists: an
+            unknown ``interface_uuid`` is listed like an interface that is not a
+            portal, and an organization you cannot see lists nothing, both without
+            an error. Confirm the interface with ``get_html_interface``.
+
+            Args:
+                organization_id: Numeric organization id (``list_organizations``
+                    returns it as ``id``); a uuid is rejected.
+                interface_uuid: The interface the sources are for; pass it, since it
+                    decides which repos qualify. An unknown uuid is not an error.
+                repo_name: Case-insensitive part of the repo name.
+            """
+            client = get_pipefy_client(ctx)
+            try:
+                organization_id = numeric_organization_id(organization_id)
+            except ValueError as exc:
+                return tool_error(str(exc), code="INVALID_ARGUMENTS")
+            _ok, interface_uuid, err = validate_optional_tool_id(
+                interface_uuid, "interface_uuid"
+            )
+            if err is not None:
+                return err
+            repo_name, err = validate_portal_optional_string(repo_name, "repo_name")
+            if err is not None:
+                return err
+            await ctx.debug(
+                f"list_interface_repos: organization_id={organization_id}, "
+                f"interface_uuid={interface_uuid}"
+            )
+            try:
+                repos = await client.list_interface_repos(
+                    organization_id, interface_uuid=interface_uuid, repo_name=repo_name
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_interface_source_error_to_message(
+                        exc,
+                        not_found_message=(
+                            f"No organization has id '{organization_id}'."
+                        ),
+                        empty_fallback=_PORTAL_READ_FAILED,
+                    )
+                )
+            return build_success_payload({"repos": repos}, include_parsed=True)
+
+        @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+        async def get_interface_repo_fields(
+            ctx: Context,
+            repo_uuid: str,
+            interface_uuid: str | None = None,
+        ) -> dict[str, Any]:
+            """List a pipe's or table's custom fields, to choose a data source's keys.
+
+            A custom field's key in ``fieldKeys`` is its ``uuid``, not its ``id``.
+            Built-in keys such as ``title``, ``created_at`` and ``current_phase_id``
+            are not listed here: ``get_interface_html_guidelines`` returns them as
+            ``filters.fixedColumnNames``. Each field has ``uuid``, ``label``,
+            ``type``, ``phaseId``, ``archived``, ``required``, ``options``,
+            ``description``, ``helpText`` and ``connectedRepoId``; archived fields
+            are included.
+
+            Args:
+                repo_uuid: The repo's ``uuid`` from ``list_interface_repos``.
+                interface_uuid: The interface the source is for.
+            """
+            client = get_pipefy_client(ctx)
+            repo_uuid, err = validate_tool_id(repo_uuid, "repo_uuid")
+            if err is not None:
+                return err
+            _ok, interface_uuid, err = validate_optional_tool_id(
+                interface_uuid, "interface_uuid"
+            )
+            if err is not None:
+                return err
+            await ctx.debug(f"get_interface_repo_fields: repo_uuid={repo_uuid}")
+            try:
+                fields = await client.get_interface_repo_fields(
+                    repo_uuid, interface_uuid=interface_uuid
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_interface_source_error_to_message(
+                        exc,
+                        not_found_message=_repo_fields_not_found_message(
+                            repo_uuid, interface_uuid
+                        ),
+                        empty_fallback=_PORTAL_READ_FAILED,
+                    )
+                )
+            return build_success_payload({"fields": fields}, include_parsed=True)
+
+        @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False))
+        async def set_interface_sources(
+            ctx: Context,
+            interface_uuid: str,
+            page_id: str,
+            element_id: str,
+            data_sources: list[dict[str, Any]],
+        ) -> dict[str, Any]:
+            """Replace the data sources of an HTML interface's customCode element.
+
+            Set sources before writing the HTML that reads them. The list replaces
+            the element's sources (``[]`` removes them all); the element's other
+            settings are kept. Each source is
+            ``{"id", "name", "repoId", "fieldKeys", "filters"}``:
+
+            - ``id``: the handle the element's HTML reads the source by; ``name``:
+              its label. Both unique within the element.
+            - ``repoId``: a repo ``uuid`` from ``list_interface_repos``.
+            - ``fieldKeys``: 1 to 30 keys, custom field uuids from
+              ``get_interface_repo_fields`` and built-in keys such as ``title``.
+            - ``filters``: optional filter tree in the format
+              ``get_interface_html_guidelines`` describes, or null.
+
+            At most 10 sources. Returns the element ``uuid`` and the
+            ``dataSources`` as sent, once the update reports success; they are not
+            read back. Call ``get_html_interface`` for the stored sources.
+
+            Args:
+                interface_uuid: The HTML interface's uuid.
+                page_id: Page holding the element.
+                element_id: The page's customCode element.
+                data_sources: The element's complete source list.
+            """
+            client = get_pipefy_client(ctx)
+            interface_uuid, err = validate_tool_id(interface_uuid, "interface_uuid")
+            if err is not None:
+                return err
+            page_id, err = validate_tool_id(page_id, "page_id")
+            if err is not None:
+                return err
+            element_id, err = validate_tool_id(element_id, "element_id")
+            if err is not None:
+                return err
+            try:
+                sources = InterfaceDataSources.model_validate(data_sources)
+            except ValidationError as exc:
+                return interface_sources_validation_error(exc)
+            await ctx.debug(
+                f"set_interface_sources: element_id={element_id}, "
+                f"sources={len(sources.root)}"
+            )
+            try:
+                element = await client.set_interface_sources(
+                    page_id, element_id, sources.root, interface_uuid=interface_uuid
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_interface_source_error_to_message(
+                        exc,
+                        not_found_message=(
+                            f"No HTML interface has uuid '{interface_uuid}'."
+                        ),
+                    )
+                )
+            return build_success_payload(element, include_parsed=True)
 
         @mcp.tool(
             annotations=ToolAnnotations(readOnlyHint=False),

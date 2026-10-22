@@ -95,7 +95,7 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 
 **`update_portal_element`:** `metadata` is **replace-all** on the wire (`updateElement.metadata` required every time). Send the full blob, not a patch. `data_sources` is replace-all too, and the API rejects an update without it: `[]` unlinks the element from its pipe or table. To keep the current data sources, omit `data_sources` and pass `portal_uuid`; the SDK reads them from `get_portal` (`pages[].elements[].dataSources`) and sends them back, together with the element's stored `editable` unless you pass one (the API rejects an update whose data source lists `fieldKeys` without `editable`). Every update passes one of the two; omitting both is rejected before any call. An element with no bindings (`link`, `text`) can pass `data_sources: []`, which skips the read.
 
-**`data_sources`:** Each entry needs a pipe repo id as `repoId` (the declared Interfaces field, plus optional `fieldKeys` / `field_keys`). Unknown keys are skipped with an SDK warning.
+**`data_sources`:** Each entry needs a pipe repo id as `repoId` (the declared Interfaces field, plus optional `fieldKeys` / `field_keys`). A source's `id`, `name` and `filters` are sent when set; a `customCode` element needs an `id` and a `name` on every source. Unknown keys are skipped with an SDK warning. For an HTML interface, use `set_interface_sources`, which checks the sources before the call.
 
 ---
 
@@ -105,6 +105,9 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 |------|-----------|------|
 | `list_portals` | Yes | Flat list: `uuid`, `name`, `visibility`, `subType`. Optional `search_term`. |
 | `get_interface_html_guidelines` | Yes | No argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. |
+| `list_interface_repos` | Yes | Numeric `organization_id`, optional `interface_uuid` and `repo_name`; the pipes and tables an HTML interface can take as data sources. |
+| `get_interface_repo_fields` | Yes | `repo_uuid`, optional `interface_uuid`; the repo's custom fields, each keyed by `uuid`. |
+| `set_interface_sources` | No | `interface_uuid`, `page_id`, `element_id`, `data_sources`; replaces a `customCode` element's sources. |
 | `get_portal` | Yes | Full portal: `published`, `pages[]`, `elements[]`, `subPortals[]`. |
 | `create_portal` | No | Idempotent main portal (`findOrCreateInterfaceByTemplate`). |
 | `update_portal` | No | `name`, `visibility` (`internal` \| `private` \| `public`), `color`, `icon`, `display_pipefy_header`. |
@@ -124,6 +127,8 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 | `unpublish_sub_portal` | No | `updateSubPortalElement(subPortalUuid: null)`. |
 | `delete_sub_portal_element` | No | Detach wiring (`deleteSubPortalElement`). |
 | `delete_sub_portal` | No | Delete interface (`deleteSubPortalInterface`). |
+
+**HTML interface data sources:** declare sources before writing the HTML that reads them. `list_interface_repos` lists the repos the interface can read: for an interface that is not a portal, the published pipes and tables you administer. A successful listing does not show that the interface exists: an unknown `interface_uuid` is listed like an interface that is not a portal, and an organization you cannot see lists nothing, both without an error, so confirm the interface with `get_html_interface`. `get_interface_repo_fields` lists a repo's custom fields; a field's key is its `uuid`, and built-in keys such as `title` come from `get_interface_html_guidelines` (`filters.fixedColumnNames`). `set_interface_sources` replaces the element's sources and returns them as sent, once the update reports success; they are not read back, so call `get_html_interface` for the stored sources. Each source needs a unique `id` (the handle the HTML reads it by) and `name`, a `repoId` from `list_interface_repos`, 1 to 30 `fieldKeys`, and `filters` as a filter tree or null; at most 10 sources. The tool reads the element and sends its `metadata` and `editable` back, so they are kept. A source on a repo you cannot bind returns "Permission denied for a data source".
 
 **Read before editing layout:** `get_portal` returns the full `pages[].layout` row array. Each row needs a non-empty `id`, `type: "row"`, and `children` as non-empty strings; array order defines placement. Pass the complete array to `update_portal_page_layout` (CLI `--layout '[...]'`), preserving unaffected rows, IDs, and children. Do not wrap it in `{ "rows": [...] }` and do not send an incomplete row: the API does not validate this field and stores that JSON verbatim, replacing the grid. The toolkit rejects a non-array and any incomplete row before the call. An empty array is a valid empty page. To add an element at a known position, pass `element_id` and `layout` (existing rows plus a row listing the new id) to `create_portal_element` instead of creating first and rewriting the grid afterwards. Element `metadata.gridMap` holds dimensions (`height`, `columns`, `minColumns`), not row order or grouping; retain it when replacing element metadata. Re-read the page and compare layout and element metadata after writing. If the layout cannot be read, stop the positional edit instead of reconstructing it from dimensions.
 

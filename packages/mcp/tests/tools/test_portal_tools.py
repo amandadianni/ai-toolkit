@@ -14,7 +14,7 @@ from _shared.fixture_ids import EXAMPLE_NUMERIC_ORG_ID, EXAMPLE_PIPE_REPO_ID
 from gql.transport.exceptions import TransportError
 from pipefy_sdk import PipefyClient, PipefyGraphQLError
 from pipefy_sdk.exceptions import PortalPermissionError
-from pipefy_sdk.models.portal import parse_portal_page_layout
+from pipefy_sdk.models.portal import InterfaceDataSource, parse_portal_page_layout
 
 from pipefy_mcp.core.tool_error_envelope import tool_error_message
 from pipefy_mcp.tools.portal_tools import PortalTools
@@ -128,6 +128,9 @@ def mock_portal_client():
     client.list_portals = AsyncMock()
     client.get_portal = AsyncMock()
     client.get_interface_html_guidelines = AsyncMock()
+    client.list_interface_repos = AsyncMock()
+    client.get_interface_repo_fields = AsyncMock()
+    client.set_interface_sources = AsyncMock()
     client.create_portal = AsyncMock()
     client.update_portal = AsyncMock()
     client.delete_portal = AsyncMock()
@@ -2758,3 +2761,374 @@ async def test_page_layout_rejects_non_row_arrays(
         )
     assert extract_payload(result)["success"] is False
     mock_portal_client.update_portal_page_layout.assert_not_called()
+
+
+_REPO_NODE = {
+    "id": EXAMPLE_PIPE_REPO_ID,
+    "uuid": "repo-uuid-1",
+    "suid": "Ab12Cd34",
+    "name": "Purchase requests",
+    "type": "Pipe",
+    "icon": "cart",
+    "color": "blue",
+    "noun": "Request",
+}
+
+
+@pytest.mark.anyio
+async def test_list_interface_repos_returns_repos_for_the_numeric_org_id(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.list_interface_repos = AsyncMock(return_value=[_REPO_NODE])
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "list_interface_repos",
+            {
+                "organization_id": int(EXAMPLE_NUMERIC_ORG_ID),
+                "interface_uuid": "html-uuid-1",
+                "repo_name": " purchase ",
+            },
+        )
+
+    mock_portal_client.list_interface_repos.assert_awaited_once_with(
+        EXAMPLE_NUMERIC_ORG_ID, interface_uuid="html-uuid-1", repo_name="purchase"
+    )
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert payload["data"] == {"repos": [_REPO_NODE]}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            {"organization_id": "00000000-0000-4000-8000-000000000001"},
+            "numeric organization id",
+        ),
+        (
+            {"organization_id": EXAMPLE_NUMERIC_ORG_ID, "repo_name": " "},
+            "repo_name",
+        ),
+    ],
+    ids=["org uuid", "blank repo_name"],
+)
+async def test_list_interface_repos_rejects_bad_arguments_before_any_call(
+    portal_session, mock_portal_client, arguments, message
+):
+    async with portal_session as session:
+        result = await session.call_tool("list_interface_repos", arguments)
+
+    payload = assert_invalid_arguments_envelope(result)
+    assert message in payload["error"]["message"]
+    mock_portal_client.list_interface_repos.assert_not_awaited()
+
+
+_SET_SOURCES_ARGS_BASE = {
+    "interface_uuid": "html-uuid-1",
+    "page_id": "page-uuid-1",
+    "element_id": "el-uuid-1",
+    "data_sources": [],
+}
+
+_NOT_FOUND_ERROR = PipefyGraphQLError(
+    [{"message": "Record not found", "extensions": {"code": "RECORD_NOT_FOUND"}}]
+)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("interface_uuid", [None, "html-uuid-1"])
+async def test_list_interface_repos_names_only_the_org_on_not_found(
+    portal_session, mock_portal_client, extract_payload, interface_uuid
+):
+    """An unknown interface is not an error for the listing, so it is never named."""
+    mock_portal_client.list_interface_repos = AsyncMock(side_effect=_NOT_FOUND_ERROR)
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "list_interface_repos",
+            {
+                "organization_id": EXAMPLE_NUMERIC_ORG_ID,
+                "interface_uuid": interface_uuid,
+            },
+        )
+
+    assert extract_payload(result)["error"]["message"] == (
+        f"No organization has id '{EXAMPLE_NUMERIC_ORG_ID}'."
+    )
+
+
+_REPO_FIELD = {
+    "id": "900000101",
+    "uuid": "6a850d1c-0000-4000-8000-000000000016",
+    "label": "Amount",
+    "type": "currency",
+    "phaseId": "900000201",
+    "archived": False,
+    "required": True,
+    "options": None,
+    "description": None,
+    "helpText": None,
+    "connectedRepoId": None,
+}
+
+
+@pytest.mark.anyio
+async def test_get_interface_repo_fields_returns_the_fields(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.get_interface_repo_fields = AsyncMock(return_value=[_REPO_FIELD])
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "get_interface_repo_fields",
+            {"repo_uuid": "repo-uuid-1", "interface_uuid": "html-uuid-1"},
+        )
+
+    mock_portal_client.get_interface_repo_fields.assert_awaited_once_with(
+        "repo-uuid-1", interface_uuid="html-uuid-1"
+    )
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert payload["data"] == {"fields": [_REPO_FIELD]}
+
+
+def _blank_id_message(name: str) -> str:
+    return f"Invalid '{name}': provide a non-empty string or positive integer."
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("tool", "arguments", "blank"),
+    [
+        (
+            "list_interface_repos",
+            {"organization_id": EXAMPLE_NUMERIC_ORG_ID, "interface_uuid": " "},
+            "interface_uuid",
+        ),
+        ("get_interface_repo_fields", {"repo_uuid": " "}, "repo_uuid"),
+        (
+            "get_interface_repo_fields",
+            {"repo_uuid": "repo-uuid-1", "interface_uuid": " "},
+            "interface_uuid",
+        ),
+        (
+            "set_interface_sources",
+            {**_SET_SOURCES_ARGS_BASE, "interface_uuid": " "},
+            "interface_uuid",
+        ),
+        (
+            "set_interface_sources",
+            {**_SET_SOURCES_ARGS_BASE, "page_id": " "},
+            "page_id",
+        ),
+        (
+            "set_interface_sources",
+            {**_SET_SOURCES_ARGS_BASE, "element_id": " "},
+            "element_id",
+        ),
+    ],
+    ids=[
+        "repos interface_uuid",
+        "fields repo_uuid",
+        "fields interface_uuid",
+        "sources interface_uuid",
+        "sources page_id",
+        "sources element_id",
+    ],
+)
+async def test_interface_source_tools_reject_blank_ids_before_any_call(
+    portal_session, mock_portal_client, extract_payload, tool, arguments, blank
+):
+    async with portal_session as session:
+        result = await session.call_tool(tool, arguments)
+
+    payload = extract_payload(result)
+    assert payload["success"] is False
+    assert payload["error"]["message"] == _blank_id_message(blank)
+    getattr(mock_portal_client, tool).assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("error", "interface_uuid", "message"),
+    [
+        (
+            _NOT_FOUND_ERROR,
+            None,
+            "No repo has uuid 'repo-uuid-1'. list_interface_repos lists the repos "
+            "an interface can read.",
+        ),
+        (
+            PipefyGraphQLError(
+                [{"message": "Missing", "extensions": {"code": "RESOURCE_NOT_FOUND"}}]
+            ),
+            "html-uuid-1",
+            "No repo has uuid 'repo-uuid-1', or no interface has uuid "
+            "'html-uuid-1'. list_interface_repos lists the repos an interface "
+            "can read.",
+        ),
+        (
+            PipefyGraphQLError([{"message": "Couldn't find the interface"}]),
+            "html-uuid-1",
+            "No repo has uuid 'repo-uuid-1', or no interface has uuid "
+            "'html-uuid-1'. list_interface_repos lists the repos an interface "
+            "can read.",
+        ),
+    ],
+    ids=["record not found", "resource not found", "uncoded not found"],
+)
+async def test_get_interface_repo_fields_names_the_ids_on_not_found(
+    portal_session, mock_portal_client, extract_payload, error, interface_uuid, message
+):
+    mock_portal_client.get_interface_repo_fields = AsyncMock(side_effect=error)
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "get_interface_repo_fields",
+            {"repo_uuid": "repo-uuid-1", "interface_uuid": interface_uuid},
+        )
+
+    payload = extract_payload(result)
+    assert payload["success"] is False
+    assert payload["error"]["message"] == message
+
+
+_SOURCES = [
+    {
+        "id": "open-requests",
+        "name": "Open requests",
+        "repoId": "repo-uuid-1",
+        "fieldKeys": ["title", "6a850d1c-0000-4000-8000-000000000016"],
+        "filters": None,
+    }
+]
+
+_SET_SOURCES_ARGS = {**_SET_SOURCES_ARGS_BASE, "data_sources": _SOURCES}
+
+
+@pytest.mark.anyio
+async def test_set_interface_sources_sends_parsed_sources_and_returns_them(
+    portal_session, mock_portal_client, extract_payload
+):
+    set_result = {"id": "el-uuid-1", "uuid": "el-uuid-1", "dataSources": _SOURCES}
+    mock_portal_client.set_interface_sources = AsyncMock(return_value=set_result)
+
+    async with portal_session as session:
+        result = await session.call_tool("set_interface_sources", _SET_SOURCES_ARGS)
+
+    mock_portal_client.set_interface_sources.assert_awaited_once_with(
+        "page-uuid-1",
+        "el-uuid-1",
+        [
+            InterfaceDataSource(
+                id="open-requests",
+                name="Open requests",
+                repo_id="repo-uuid-1",
+                field_keys=["title", "6a850d1c-0000-4000-8000-000000000016"],
+                filters=None,
+            )
+        ],
+        interface_uuid="html-uuid-1",
+    )
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert payload["data"] == set_result
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            {"data_sources": [{**_SOURCES[0], "fieldKeys": []}]},
+            "data_sources[0].fieldKeys: List should have at least 1 item after "
+            "validation, not 0",
+        ),
+        (
+            {"data_sources": [{**_SOURCES[0], "id": " "}, {**_SOURCES[0], "name": ""}]},
+            "data_sources[0].id: Value should have at least 1 item after "
+            "validation, not 0; data_sources[1].name: Value should have at least 1 "
+            "item after validation, not 0",
+        ),
+        (
+            {"data_sources": [_SOURCES[0], {**_SOURCES[0], "name": "Other"}]},
+            "data_sources: Each data source needs its own id; repeated: open-requests.",
+        ),
+    ],
+    ids=["empty field keys", "two blank values", "repeated id"],
+)
+async def test_set_interface_sources_rejects_invalid_sources_before_any_call(
+    portal_session, mock_portal_client, arguments, message
+):
+    async with portal_session as session:
+        result = await session.call_tool(
+            "set_interface_sources", {**_SET_SOURCES_ARGS, **arguments}
+        )
+
+    payload = assert_invalid_arguments_envelope(result)
+    assert payload["error"]["message"] == message
+    mock_portal_client.set_interface_sources.assert_not_awaited()
+
+
+_SOURCE_REFUSED = (
+    "Permission denied for a data source: you can bind only the pipes and tables "
+    "list_interface_repos returns for this interface."
+)
+_TABLE_ELEMENT = (
+    "Element 'el-uuid-1' is a 'table' element; named data sources go on an HTML "
+    "interface's customCode element."
+)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (
+            PipefyGraphQLError([{"message": "Couldn't find the interface"}]),
+            "No HTML interface has uuid 'html-uuid-1'.",
+        ),
+        (PipefyGraphQLError([{"message": "Permission denied"}]), _SOURCE_REFUSED),
+        (
+            PipefyGraphQLError(
+                [
+                    {
+                        "message": "Permission denied",
+                        "extensions": {"code": "PERMISSION_DENIED"},
+                    }
+                ]
+            ),
+            _PORTAL_PERMISSION_DENIED_MSG,
+        ),
+        (
+            PipefyGraphQLError([{"message": "Permission denied for this portal"}]),
+            _PORTAL_PERMISSION_DENIED_MSG,
+        ),
+        (
+            PortalPermissionError(_PORTAL_PERMISSION_DENIED_MSG),
+            _PORTAL_PERMISSION_DENIED_MSG,
+        ),
+        (ValueError(_TABLE_ELEMENT), _TABLE_ELEMENT),
+    ],
+    ids=[
+        "unknown interface",
+        "source repo refused",
+        "coded refusal",
+        "other refusal text",
+        "interface refused",
+        "sdk",
+    ],
+)
+async def test_set_interface_sources_maps_api_errors_for_agents(
+    portal_session, mock_portal_client, extract_payload, error, message
+):
+    mock_portal_client.set_interface_sources = AsyncMock(side_effect=error)
+
+    async with portal_session as session:
+        result = await session.call_tool("set_interface_sources", _SET_SOURCES_ARGS)
+
+    payload = extract_payload(result)
+    assert payload["success"] is False
+    assert payload["error"]["message"] == message

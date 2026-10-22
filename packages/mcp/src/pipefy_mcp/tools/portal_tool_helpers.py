@@ -113,6 +113,62 @@ def map_portal_error_to_message(
     return ensure_non_empty_error_message(text, empty_fallback)
 
 
+_NOT_FOUND_CODES = frozenset({"RECORD_NOT_FOUND", "RESOURCE_NOT_FOUND"})
+_SOURCE_ACCESS_DENIED = (
+    "Permission denied for a data source: you can bind only the pipes and tables "
+    "list_interface_repos returns for this interface."
+)
+
+
+def map_interface_source_error_to_message(
+    exc: BaseException,
+    *,
+    not_found_message: str,
+    empty_fallback: str = _PORTAL_OPERATION_FAILED,
+) -> str:
+    """Map failures of the interface data source tools to agent-friendly messages.
+
+    The API's text for an unknown repo or interface uuid is not fit to show, so a
+    not-found error becomes ``not_found_message``. A ``Permission denied`` with no
+    error code is the API refusing a source's repo, not the interface.
+
+    Args:
+        exc: Exception raised by a ``PipefyClient`` interface source method.
+        not_found_message: Message naming the ids the call was given.
+        empty_fallback: Message for any other error whose text is blank.
+    """
+    if not isinstance(exc, PipefyGraphQLError):
+        return map_portal_error_to_message(exc, empty_fallback=empty_fallback)
+    codes = extract_graphql_error_codes(exc)
+    lowered = str(exc).strip().lower()
+    if _NOT_FOUND_CODES.intersection(codes) or lowered.startswith("couldn't find"):
+        return not_found_message
+    if not codes and lowered == "permission denied":
+        return _SOURCE_ACCESS_DENIED
+    return map_portal_error_to_message(exc, empty_fallback=empty_fallback)
+
+
+def interface_sources_validation_error(exc: ValidationError) -> dict[str, object]:
+    """Map an ``InterfaceDataSources`` validation error to ``INVALID_ARGUMENTS``.
+
+    Each problem reads ``data_sources[index].key: message``; a rule over the whole
+    list (a repeated ``id`` or ``name``) keeps its own message.
+    """
+    clauses: list[str] = []
+    for err in exc.errors(include_url=False):
+        inner = (err.get("ctx") or {}).get("error")
+        if err.get("type") == "value_error" and inner is not None:
+            message = str(inner)
+        else:
+            message = str(err.get("msg", ""))
+        where = "data_sources" + "".join(
+            f"[{part}]" if isinstance(part, int) else f".{part}"
+            for part in err.get("loc", ())
+        )
+        clauses.append(f"{where}: {message}")
+    return tool_error("; ".join(clauses), code="INVALID_ARGUMENTS")
+
+
 def validate_tool_ids(
     raw: dict[str, str],
 ) -> tuple[dict[str, str] | None, dict[str, object] | None]:
@@ -325,6 +381,8 @@ def plan_portal_element_delete_confirmation(
 __all__ = [
     "PortalElementDeleteConfirmation",
     "finalize_internal_api_mutation",
+    "interface_sources_validation_error",
+    "map_interface_source_error_to_message",
     "map_portal_error_to_message",
     "plan_portal_element_delete_confirmation",
     "portal_element_validation_error",
