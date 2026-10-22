@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -126,6 +127,7 @@ def mock_portal_client():
     client = MagicMock(PipefyClient)
     client.list_portals = AsyncMock()
     client.get_portal = AsyncMock()
+    client.get_interface_html_guidelines = AsyncMock()
     client.create_portal = AsyncMock()
     client.update_portal = AsyncMock()
     client.delete_portal = AsyncMock()
@@ -301,6 +303,123 @@ async def test_get_portal_not_found_returns_error_envelope(
     payload = extract_payload(result)
     assert payload["success"] is False
     assert "not found" in tool_error_message(payload).lower()
+
+
+_HTML_GUIDELINES = {
+    "allowedTags": ["div", "span", "p"],
+    "forbiddenTags": [
+        {"code": "SCRIPT_FORBIDDEN", "message": "No <script>.", "subject": "script"}
+    ],
+    "forbiddenAttributes": [
+        {
+            "code": "ID_ATTRIBUTE_FORBIDDEN",
+            "message": "Use data-pfy-id.",
+            "subject": "id",
+        }
+    ],
+    "cssRules": [
+        {"code": "CSS_IMPORT_FORBIDDEN", "message": "No @import.", "subject": "@import"}
+    ],
+    "errorCodes": [
+        {"code": "TAG_NOT_ALLOWED", "description": "A tag outside allowedTags."}
+    ],
+    "filters": {
+        "description": "A filter is a tree.",
+        "example": {"id": "f1", "type": "root", "conjunction": "and", "filterSet": []},
+        "fixedColumnNames": ["title"],
+        "knownOperators": [{"filterType": "text", "operators": ["eq"]}],
+    },
+    "designSystem": None,
+    "maxContentBytes": 200000,
+    "maxNestingDepth": 398,
+    "maxAttributesPerElement": 400,
+}
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_success(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=_HTML_GUIDELINES
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with()
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert "result" in payload
+    assert payload["data"]["allowedTags"] == ["div", "span", "p"]
+    assert payload["data"]["filters"]["knownOperators"][0]["filterType"] == "text"
+
+
+_SAMPLE_DESIGN_SYSTEM = {
+    "name": "Flow",
+    "version": "0.1.0-alpha.17",
+    "instructions": ["Use classes verbatim; never invent one."],
+    "tokens": ["--background", "--foreground"],
+    "icons": ["arrow-down", "check"],
+    "components": [
+        {
+            "name": "button",
+            "category": "Primitives",
+            "classes": ["cn-button-variant-default", "cn-button-variant-destructive"],
+            "use": ["Actions that change something."],
+            "avoid": ["An icon button without aria-label."],
+            "examples": [
+                {
+                    "title": "Destructive",
+                    "html": (
+                        '<button class="cn-button-variant-destructive" '
+                        'aria-label="Delete record">Delete</button>'
+                    ),
+                },
+            ],
+        },
+    ],
+}
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
+    portal_session, mock_portal_client, extract_payload
+):
+    guidelines = {**_HTML_GUIDELINES, "designSystem": _SAMPLE_DESIGN_SYSTEM}
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=guidelines
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert payload["data"]["designSystem"] == _SAMPLE_DESIGN_SYSTEM
+    component = payload["data"]["designSystem"]["components"][0]
+    assert component["examples"][0]["html"] == (
+        '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
+    )
+    assert json.loads(payload["result"])["designSystem"] == _SAMPLE_DESIGN_SYSTEM
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_transport_error_returns_error_envelope(
+    portal_session, mock_portal_client, extract_payload
+):
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        side_effect=TransportError("connection reset")
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is False
 
 
 @pytest.mark.anyio

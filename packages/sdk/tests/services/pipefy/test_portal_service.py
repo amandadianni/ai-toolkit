@@ -29,6 +29,7 @@ from pipefy_sdk.models.portal import parse_portal_page_layout
 from pipefy_sdk.queries.observability_queries import RESOLVE_ORGANIZATION_UUID_QUERY
 from pipefy_sdk.queries.portal_queries import (
     GET_HTML_INTERFACE_QUERY,
+    GET_INTERFACE_HTML_GUIDELINES_QUERY,
     GET_PORTAL_QUERY,
     LIST_INTERFACES_QUERY,
     LIST_PORTALS_QUERY,
@@ -550,6 +551,43 @@ _HTML_INTERFACE_DETAIL_GRAPHQL = {
     "pages": [{"id": "page-1", "title": "Page", "elements": [_CUSTOM_CODE_ELEMENT]}],
 }
 
+_HTML_GUIDELINES_GRAPHQL = {
+    "allowedAttributePrefixes": ["data-"],
+    "allowedDataAttributes": ["data-flow-variant"],
+    "allowedDataPfyAttributes": ["data-pfy-source", "data-pfy-field"],
+    "allowedPlainAttributes": ["class", "style"],
+    "allowedTags": ["div", "span", "p"],
+    "authoringNotes": ["No JavaScript."],
+    "cssRules": [
+        {"code": "CSS_IMPORT_FORBIDDEN", "message": "No @import.", "subject": "@import"}
+    ],
+    "designSystem": None,
+    "errorCodes": [
+        {"code": "TAG_NOT_ALLOWED", "description": "A tag outside allowedTags."}
+    ],
+    "filters": {
+        "description": "A filter is a tree.",
+        "example": {"id": "f1", "type": "root", "conjunction": "and", "filterSet": []},
+        "fixedColumnNames": ["title", "created_at"],
+        "knownOperators": [{"filterType": "text", "operators": ["eq", "contains"]}],
+    },
+    "forbiddenAttributes": [
+        {
+            "code": "ID_ATTRIBUTE_FORBIDDEN",
+            "message": "Use data-pfy-id.",
+            "subject": "id",
+        }
+    ],
+    "forbiddenTags": [
+        {"code": "SCRIPT_FORBIDDEN", "message": "No <script>.", "subject": "script"}
+    ],
+    "linkAttributes": ["src", "href"],
+    "maxAttributesPerElement": 400,
+    "maxContentBytes": 200000,
+    "maxNestingDepth": 398,
+    "urlRule": "Relative, data:, or blob: only.",
+}
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio
@@ -573,6 +611,19 @@ async def test_get_html_interface_returns_pages_with_html_documents() -> None:
             }
         ],
     }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_interface_html_guidelines_returns_the_full_shape() -> None:
+    """get_interface_html_guidelines returns the guidelines payload unchanged."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"interfaceHtmlGuidelines": _HTML_GUIDELINES_GRAPHQL},
+    )
+
+    result = await service.get_interface_html_guidelines()
+
+    assert result == _HTML_GUIDELINES_GRAPHQL
 
 
 @pytest.mark.unit
@@ -619,6 +670,21 @@ async def test_get_html_interface_rejects_grid_interface(
 
     with pytest.raises(ValueError, match="not an HTML interface.*get_portal"):
         await service.get_html_interface("html-uuid-1")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_interface_html_guidelines_sends_no_variables() -> None:
+    """get_interface_html_guidelines takes no argument: the rules are org-independent."""
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"interfaceHtmlGuidelines": _HTML_GUIDELINES_GRAPHQL},
+    )
+
+    await service.get_interface_html_guidelines()
+
+    query_used, variables = interfaces_executor.execute_query.call_args[0]
+    assert query_used is GET_INTERFACE_HTML_GUIDELINES_QUERY
+    assert variables == {}
 
 
 _portal_queries_module = importlib.import_module("pipefy_sdk.queries.portal_queries")
@@ -2148,6 +2214,71 @@ def test_get_html_interface_selects_data_source_id_name_and_filters():
         "id",
         "name",
         "filters",
+    }
+
+
+def _selection_names(selections):
+    return {field.name.value for field in selections}
+
+
+def _selected_field(selections, name):
+    return next(field for field in selections if field.name.value == name)
+
+
+def test_get_interface_html_guidelines_selects_every_guideline_field():
+    """A forgotten or misspelled field here would still pass a mocked-response test."""
+    guidelines = GET_INTERFACE_HTML_GUIDELINES_QUERY.document.definitions[
+        0
+    ].selection_set.selections[0]
+    top_level = _selection_names(guidelines.selection_set.selections)
+
+    assert top_level == {
+        "allowedAttributePrefixes",
+        "allowedDataAttributes",
+        "allowedDataPfyAttributes",
+        "allowedPlainAttributes",
+        "allowedTags",
+        "authoringNotes",
+        "cssRules",
+        "designSystem",
+        "errorCodes",
+        "filters",
+        "forbiddenAttributes",
+        "forbiddenTags",
+        "linkAttributes",
+        "maxAttributesPerElement",
+        "maxContentBytes",
+        "maxNestingDepth",
+        "urlRule",
+    }
+
+    for name in ("cssRules", "forbiddenAttributes", "forbiddenTags"):
+        rule = _selected_field(guidelines.selection_set.selections, name)
+        assert _selection_names(rule.selection_set.selections) == {
+            "code",
+            "message",
+            "subject",
+        }
+
+    error_codes = _selected_field(guidelines.selection_set.selections, "errorCodes")
+    assert _selection_names(error_codes.selection_set.selections) == {
+        "code",
+        "description",
+    }
+
+    filters = _selected_field(guidelines.selection_set.selections, "filters")
+    assert _selection_names(filters.selection_set.selections) == {
+        "description",
+        "example",
+        "fixedColumnNames",
+        "knownOperators",
+    }
+    known_operators = _selected_field(
+        filters.selection_set.selections, "knownOperators"
+    )
+    assert _selection_names(known_operators.selection_set.selections) == {
+        "filterType",
+        "operators",
     }
 
 
