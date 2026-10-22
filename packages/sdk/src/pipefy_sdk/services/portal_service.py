@@ -135,13 +135,21 @@ def _serialize_layout_rows(rows: list[PortalPageLayoutRow]) -> str:
     return _serialize_interfaces_json([row.model_dump() for row in rows])
 
 
+def _filters_json_scalar(filters: dict[str, Any] | str) -> str:
+    """Encode a source's filter tree as an Interfaces Json string; reads return one already."""
+    return filters if isinstance(filters, str) else _serialize_interfaces_json(filters)
+
+
 def _normalize_portal_data_sources(
     sources: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Map agent-friendly keys to Interfaces ``DataSourceInput`` (``repoId``, ``fieldKeys``).
+    """Map agent-friendly keys to Interfaces ``DataSourceInput``.
 
-    ``repoId`` is the declared Interfaces input field (a pipe repo UUID). Invalid
-    entries are skipped and logged at warning level.
+    ``repoId`` is the declared Interfaces input field (a pipe repo UUID). A source's
+    ``id``, ``name`` and ``filters`` go through when set, since the API replaces the
+    stored list with exactly what is sent. ``filters`` is sent as an Interfaces Json
+    string; a string, as reads return it, goes through as is. Invalid entries are
+    skipped and logged at warning level.
     """
     normalized: list[dict[str, Any]] = []
     for index, source in enumerate(sources):
@@ -166,7 +174,12 @@ def _normalize_portal_data_sources(
             field_keys = source.get("field_keys", [])
         if not isinstance(field_keys, list):
             field_keys = []
-        normalized.append({"repoId": repo_id.strip(), "fieldKeys": field_keys})
+        entry: dict[str, Any] = {
+            key: source[key] for key in ("id", "name") if source.get(key) is not None
+        }
+        if source.get("filters") is not None:
+            entry["filters"] = _filters_json_scalar(source["filters"])
+        normalized.append({**entry, "repoId": repo_id.strip(), "fieldKeys": field_keys})
     return normalized
 
 

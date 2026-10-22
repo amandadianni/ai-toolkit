@@ -1707,6 +1707,103 @@ async def test_update_portal_element_keep_path_sends_given_editable() -> None:
     ]
 
 
+_OPEN_FILTER = {
+    "id": "root",
+    "type": "root",
+    "conjunction": "and",
+    "filterSet": [
+        {"id": "leaf", "columnName": "title", "operator": "not_empty", "value": None}
+    ],
+}
+_OPEN_FILTER_JSON = (
+    '{"id":"root","type":"root","conjunction":"and","filterSet":'
+    '[{"id":"leaf","columnName":"title","operator":"not_empty","value":null}]}'
+)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_update_portal_element_keep_path_resends_source_id_name_and_filters() -> (
+    None
+):
+    """A kept source goes back with its handle, label and filters, as the API read them."""
+    stored_source = {
+        "id": "open-requests",
+        "name": "Open requests",
+        "filters": _OPEN_FILTER_JSON,
+        "repoId": EXAMPLE_PIPE_REPO_ID,
+        "repoName": "Requests",
+        "repoType": "Pipe",
+        "fieldKeys": ["title"],
+    }
+    portal = _portal_with_forms_element()
+    target = portal["portalInterface"]["pages"][1]["elements"][1]
+    target["dataSources"] = [stored_source]
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = [
+        portal,
+        {"updateElement": {"success": True}},
+    ]
+
+    await service.update_portal_element(
+        _ELEMENT_ID,
+        _PAGE_ID,
+        type="forms",
+        metadata=_FORMS_METADATA,
+        portal_uuid=_PORTAL_UUID,
+    )
+
+    variables = interfaces_executor.execute_query.call_args[0][1]
+    assert variables["input"]["data_sources"] == [
+        {
+            "id": "open-requests",
+            "name": "Open requests",
+            "filters": _OPEN_FILTER_JSON,
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "fieldKeys": ["title"],
+        }
+    ]
+
+
+_OPEN_REQUESTS_HANDLE = {
+    "id": "open-requests",
+    "name": "Open requests",
+    "repoId": EXAMPLE_PIPE_REPO_ID,
+    "fieldKeys": ["title"],
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("filters", "sent_filters"),
+    [
+        (_OPEN_FILTER, {"filters": _OPEN_FILTER_JSON}),
+        (None, {}),
+    ],
+    ids=["object sent as Interfaces Json", "null not sent"],
+)
+async def test_update_portal_element_sends_given_source_handle_and_filters(
+    filters: dict | None, sent_filters: dict
+) -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"updateElement": {"success": True}},
+    )
+
+    await service.update_portal_element(
+        _ELEMENT_ID,
+        _PAGE_ID,
+        type="forms",
+        metadata=_FORMS_METADATA,
+        data_sources=[{**_OPEN_REQUESTS_HANDLE, "filters": filters}],
+    )
+
+    variables = interfaces_executor.execute_query.call_args[0][1]
+    assert variables["input"]["data_sources"] == [
+        {**_OPEN_REQUESTS_HANDLE, **sent_filters}
+    ]
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_update_portal_element_requires_data_sources_or_portal_uuid() -> None:
@@ -2170,6 +2267,9 @@ def test_get_portal_selects_element_data_sources_and_editable():
         if field.name.value == "dataSources"
     )
     assert {field.name.value for field in data_sources.selection_set.selections} >= {
+        "id",
+        "name",
+        "filters",
         "repoId",
         "fieldKeys",
     }

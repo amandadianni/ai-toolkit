@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **SDK `update_portal_element`, source handles**: an update dropped each data source's `id`, `name` and `filters`. A `customCode` element needs an `id` and a `name` on every source, so the API rejected any update of one, whether the sources were given or kept with `portal_uuid`. Sources now keep `id`, `name` and `filters`; `get_portal` reads them so the keep path sends them back, and a `filters` object is sent as an Interfaces Json string.
+
 - **CLI tracebacks, local variables**: when the `pipefy` CLI hit an error it does not turn into a message, it printed a traceback that listed the local variables of each frame. In `pipefy auth login`, and in the token refresh that runs before a data command, those variables hold the access and refresh tokens, so up to the first 80 characters of each token went to stderr, and from there to terminal scrollback or a CI log. The traceback now shows the file, line, and error without local variables.
 
 ## [0.5.4-beta.2] - 2026-10-20
