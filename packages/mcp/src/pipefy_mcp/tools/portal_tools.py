@@ -303,7 +303,8 @@ class PortalTools:
               ``get_interface_html_guidelines`` describes, or null.
 
             At most 10 sources. Returns the element ``uuid`` and the
-            ``dataSources`` set.
+            ``dataSources`` as sent, once the update reports success; they are not
+            read back. Call ``get_html_interface`` for the stored sources.
 
             Args:
                 interface_uuid: The HTML interface's uuid.
