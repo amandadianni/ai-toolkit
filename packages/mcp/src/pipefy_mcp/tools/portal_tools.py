@@ -48,15 +48,6 @@ from pipefy_mcp.tools.validation_helpers import (
 _PORTAL_READ_FAILED = "Portal request failed."
 
 
-def _repos_not_found_message(organization_id: str, interface_uuid: str | None) -> str:
-    if interface_uuid is None:
-        return f"No organization has id '{organization_id}'."
-    return (
-        f"No organization has id '{organization_id}', or no interface has uuid "
-        f"'{interface_uuid}'."
-    )
-
-
 def _repo_fields_not_found_message(repo_uuid: str, interface_uuid: str | None) -> str:
     missing = f"No repo has uuid '{repo_uuid}'"
     if interface_uuid is not None:
@@ -197,11 +188,16 @@ class PortalTools:
             repo has ``uuid`` (a source's ``repoId``), ``name``, ``type`` (``Pipe``
             or ``Table``), ``id``, ``suid``, ``icon``, ``color`` and ``noun``.
 
+            A successful listing does not show that the interface exists: an
+            unknown ``interface_uuid`` is listed like an interface that is not a
+            portal, and an organization you cannot see lists nothing, both without
+            an error. Confirm the interface with ``get_html_interface``.
+
             Args:
                 organization_id: Numeric organization id (``list_organizations``
                     returns it as ``id``); a uuid is rejected.
                 interface_uuid: The interface the sources are for; pass it, since it
-                    decides which repos qualify.
+                    decides which repos qualify. An unknown uuid is not an error.
                 repo_name: Case-insensitive part of the repo name.
             """
             client = get_pipefy_client(ctx)
@@ -229,8 +225,8 @@ class PortalTools:
                 return build_error_payload(
                     map_interface_source_error_to_message(
                         exc,
-                        not_found_message=_repos_not_found_message(
-                            organization_id, interface_uuid
+                        not_found_message=(
+                            f"No organization has id '{organization_id}'."
                         ),
                         empty_fallback=_PORTAL_READ_FAILED,
                     )

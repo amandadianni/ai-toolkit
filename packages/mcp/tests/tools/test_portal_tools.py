@@ -2838,21 +2838,11 @@ _NOT_FOUND_ERROR = PipefyGraphQLError(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("interface_uuid", "message"),
-    [
-        (None, f"No organization has id '{EXAMPLE_NUMERIC_ORG_ID}'."),
-        (
-            "html-uuid-1",
-            f"No organization has id '{EXAMPLE_NUMERIC_ORG_ID}', or no interface "
-            "has uuid 'html-uuid-1'.",
-        ),
-    ],
-    ids=["no interface", "with interface"],
-)
-async def test_list_interface_repos_names_the_ids_on_not_found(
-    portal_session, mock_portal_client, extract_payload, interface_uuid, message
+@pytest.mark.parametrize("interface_uuid", [None, "html-uuid-1"])
+async def test_list_interface_repos_names_only_the_org_on_not_found(
+    portal_session, mock_portal_client, extract_payload, interface_uuid
 ):
+    """An unknown interface is not an error for the listing, so it is never named."""
     mock_portal_client.list_interface_repos = AsyncMock(side_effect=_NOT_FOUND_ERROR)
 
     async with portal_session as session:
@@ -2864,7 +2854,9 @@ async def test_list_interface_repos_names_the_ids_on_not_found(
             },
         )
 
-    assert extract_payload(result)["error"]["message"] == message
+    assert extract_payload(result)["error"]["message"] == (
+        f"No organization has id '{EXAMPLE_NUMERIC_ORG_ID}'."
+    )
 
 
 _REPO_FIELD = {
