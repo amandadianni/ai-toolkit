@@ -23,6 +23,8 @@ from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     CreatePortalInput,
     DeletePortalElementInput,
+    InterfaceDataSource,
+    InterfaceDataSources,
     PortalElementType,
     PortalPageLayoutRow,
     UpdatePortalElementInput,
@@ -44,7 +46,9 @@ from pipefy_sdk.queries.portal_queries import (
     DUPLICATE_ELEMENT_MUTATION,
     FIND_OR_CREATE_PORTAL_MUTATION,
     GET_HTML_INTERFACE_QUERY,
+    GET_INTERFACE_REPO_FIELDS_QUERY,
     GET_PORTAL_QUERY,
+    LIST_INTERFACE_REPOS_QUERY,
     LIST_INTERFACES_QUERY,
     LIST_PORTALS_QUERY,
     SORT_PAGES_MUTATION,
@@ -54,7 +58,10 @@ from pipefy_sdk.queries.portal_queries import (
     UPDATE_PAGE_MUTATION,
     WRITE_HTML_DOCUMENT_MUTATION,
 )
-from pipefy_sdk.utils.organization_identifiers import resolve_organization_uuid
+from pipefy_sdk.utils.organization_identifiers import (
+    numeric_organization_id,
+    resolve_organization_uuid,
+)
 from pipefy_sdk.utils.relay import unwrap_relay_connection_nodes
 
 logger = logging.getLogger(__name__)
@@ -138,6 +145,29 @@ def _serialize_layout_rows(rows: list[PortalPageLayoutRow]) -> str:
 def _filters_json_scalar(filters: dict[str, Any] | str) -> str:
     """Encode a source's filter tree as an Interfaces Json string; reads return one already."""
     return filters if isinstance(filters, str) else _serialize_interfaces_json(filters)
+
+
+def _data_source_inputs(sources: InterfaceDataSources) -> list[dict[str, Any]]:
+    """Map parsed sources to Interfaces ``DataSourceInput`` objects."""
+    inputs: list[dict[str, Any]] = []
+    for source in sources.root:
+        entry = source.model_dump(by_alias=True, exclude={"filters"})
+        if source.filters is not None:
+            entry["filters"] = _filters_json_scalar(source.filters)
+        inputs.append(entry)
+    return inputs
+
+
+def _require_update_success(
+    data: dict[str, Any], *, element_id: str, page_id: str
+) -> None:
+    """Raise ``ValueError`` unless ``updateElement`` reported ``success``."""
+    if not (data.get("updateElement") or {}).get("success"):
+        msg = (
+            f"updateElement returned success=false for element_id={element_id!r} "
+            f"on page_id={page_id!r}."
+        )
+        raise ValueError(msg)
 
 
 def _normalize_portal_data_sources(
@@ -269,6 +299,40 @@ def _normalize_html_interface_detail(interface: dict[str, Any]) -> dict[str, Any
     return {**_with_uuid_alias(interface), "pages": pages}
 
 
+def _element_on_page(
+    interface: dict[str, Any],
+    *,
+    interface_kind: str,
+    interface_uuid: str,
+    page_id: str,
+    element_id: str,
+    not_found_hint: str,
+) -> dict[str, Any]:
+    """Return element ``element_id`` of page ``page_id`` of an interface payload.
+
+    Raises:
+        ValueError: The element is on another page (the message names it), or on
+            no page (the message ends with ``not_found_hint``).
+    """
+    for page in interface["pages"]:
+        for element in page["elements"]:
+            if element["id"] != element_id:
+                continue
+            if page["id"] == page_id:
+                return element
+            msg = (
+                f"Element '{element_id}' is on page '{page['id']}' of "
+                f"{interface_kind} '{interface_uuid}', not on page '{page_id}'. "
+                f"Pass page_id='{page['id']}'."
+            )
+            raise ValueError(msg)
+    msg = (
+        f"Element '{element_id}' is on no page of {interface_kind} "
+        f"'{interface_uuid}'. {not_found_hint}"
+    )
+    raise ValueError(msg)
+
+
 def _stored_element(
     portal: dict[str, Any], *, portal_uuid: str, page_id: str, element_id: str
 ) -> dict[str, Any]:
@@ -277,23 +341,42 @@ def _stored_element(
     Raises:
         ValueError: The element is on another page, or on no page of the portal.
     """
-    for page in portal["pages"]:
-        for element in page["elements"]:
-            if element["id"] != element_id:
-                continue
-            if page["id"] == page_id:
-                return element
-            msg = (
-                f"Element '{element_id}' is on page '{page['id']}' of portal "
-                f"'{portal_uuid}', not on page '{page_id}'. "
-                f"Pass page_id='{page['id']}'."
-            )
-            raise ValueError(msg)
-    msg = (
-        f"Element '{element_id}' is on no page of portal '{portal_uuid}'. "
-        "Check portal_uuid and element_id, or pass data_sources to skip the read."
+    return _element_on_page(
+        portal,
+        interface_kind="portal",
+        interface_uuid=portal_uuid,
+        page_id=page_id,
+        element_id=element_id,
+        not_found_hint=(
+            "Check portal_uuid and element_id, or pass data_sources to skip the read."
+        ),
     )
-    raise ValueError(msg)
+
+
+def _stored_custom_code_element(
+    interface: dict[str, Any], *, interface_uuid: str, page_id: str, element_id: str
+) -> dict[str, Any]:
+    """Return ``customCode`` element ``element_id`` of page ``page_id`` of an HTML interface.
+
+    Raises:
+        ValueError: The element is on another page or on no page, or is not
+            ``customCode``.
+    """
+    element = _element_on_page(
+        interface,
+        interface_kind="interface",
+        interface_uuid=interface_uuid,
+        page_id=page_id,
+        element_id=element_id,
+        not_found_hint="get_html_interface lists its pages and elements.",
+    )
+    if element["type"] != "customCode":
+        msg = (
+            f"Element '{element_id}' is a '{element['type']}' element; named data "
+            "sources go on an HTML interface's customCode element."
+        )
+        raise ValueError(msg)
+    return element
 
 
 class PortalService:
@@ -418,23 +501,100 @@ class PortalService:
         }
         if search_term is not None:
             variables["searchTerm"] = search_term
-        nodes = await self._all_interface_nodes(variables)
+        nodes = await self._all_connection_nodes(
+            LIST_INTERFACES_QUERY, "interfaces", variables
+        )
         return [_with_uuid_alias(node) for node in nodes if node.get("contentModeHtml")]
 
-    async def _all_interface_nodes(
-        self, variables: dict[str, Any]
+    async def _all_connection_nodes(
+        self, query: DocumentNode, connection_field: str, variables: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Run ``LIST_INTERFACES_QUERY`` page by page and return every node."""
+        """Run an Interfaces connection query page by page and return every node."""
         nodes: list[dict[str, Any]] = []
         while True:
-            data = await self.execute_interfaces_query(LIST_INTERFACES_QUERY, variables)
-            connection = data.get("interfaces") or {}
+            data = await self.execute_interfaces_query(query, variables)
+            connection = data.get(connection_field) or {}
             nodes.extend(unwrap_relay_connection_nodes(connection))
             page_info = connection.get("pageInfo") or {}
             end_cursor = page_info.get("endCursor")
             if not page_info.get("hasNextPage") or not end_cursor:
                 return nodes
             variables = {**variables, "after": end_cursor}
+
+    async def list_interface_repos(
+        self,
+        organization_id: str | int,
+        *,
+        interface_uuid: str | None = None,
+        repo_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List the pipes and tables an interface element can take as a data source.
+
+        For a portal or sub-portal interface, these are the organization's findable
+        published pipes; otherwise the published pipes and tables the caller
+        administers. Results are ordered by name, and every page is followed.
+
+        Args:
+            organization_id: Numeric organization id; a uuid is rejected.
+            interface_uuid: Interface the source is for; it decides which repos
+                qualify, as above.
+            repo_name: Case-insensitive part of the repo name.
+
+        Returns:
+            Repo nodes with ``id``, ``uuid``, ``suid``, ``name``, ``type`` (``Pipe``
+            or ``Table``), ``icon``, ``color`` and ``noun``. A data source's
+            ``repoId`` is the ``uuid``.
+
+        Raises:
+            ValueError: ``organization_id`` is not numeric; nothing is sent.
+        """
+        variables: dict[str, Any] = {
+            "orgId": numeric_organization_id(organization_id),
+            "first": _INTERFACES_PER_REQUEST,
+        }
+        if interface_uuid is not None:
+            variables["interfaceUuid"] = interface_uuid
+        if repo_name is not None:
+            variables["repoName"] = repo_name
+        return await self._all_connection_nodes(
+            LIST_INTERFACE_REPOS_QUERY, "interfaceRepos", variables
+        )
+
+    async def get_interface_repo_fields(
+        self, repo_uuid: str, *, interface_uuid: str | None = None
+    ) -> list[dict[str, Any]]:
+        """List a pipe's or table's custom fields, for an interface data source.
+
+        A custom field's data source key is its ``uuid``. The built-in keys (such
+        as ``title``, ``created_at`` and ``current_phase_id``) are not fields of
+        the repo: ``interfaceHtmlGuidelines`` lists them as
+        ``filters.fixedColumnNames``.
+
+        Args:
+            repo_uuid: The repo's uuid, as ``list_interface_repos`` returns it.
+            interface_uuid: Interface the source is for; access to the repo is
+                checked in its context.
+
+        Returns:
+            Fields with ``id``, ``uuid``, ``label``, ``type``, ``phaseId``,
+            ``archived``, ``required``, ``options``, ``description``, ``helpText``
+            and ``connectedRepoId``. Archived fields are included.
+
+        Raises:
+            ValueError: The response has no repo structure.
+            PipefyGraphQLError: No repo has this uuid, or the caller cannot read it.
+        """
+        variables: dict[str, Any] = {"repoId": repo_uuid}
+        if interface_uuid is not None:
+            variables["interfaceId"] = interface_uuid
+        data = await self.execute_interfaces_query(
+            GET_INTERFACE_REPO_FIELDS_QUERY, variables
+        )
+        structure = data.get("interfacesRepoStructure")
+        if structure is None:
+            msg = f"Repo '{repo_uuid}' was not found."
+            raise ValueError(msg)
+        return structure["fields"]
 
     async def get_html_interface(self, interface_uuid: str) -> dict[str, Any]:
         """Fetch an HTML interface with each page's elements and live HTML documents.
@@ -504,6 +664,69 @@ class PortalService:
             if validation_error is not None:
                 raise validation_error from exc
             raise
+
+    async def set_interface_sources(
+        self,
+        page_id: str,
+        element_id: str,
+        data_sources: list[InterfaceDataSource | dict[str, Any]],
+        *,
+        interface_uuid: str,
+    ) -> dict[str, Any]:
+        """Replace the data sources of an HTML interface's ``customCode`` element.
+
+        Reads the element first and sends its ``metadata`` and ``editable`` back
+        unchanged, since the update replaces the metadata and fails a source with
+        field keys when ``editable`` is missing.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            data_sources: The element's complete source list; ``[]`` removes them
+                all. Each source has ``id`` (the handle the HTML reads it by),
+                ``name``, ``repoId`` (a uuid from ``list_interface_repos``),
+                ``fieldKeys`` (custom field uuids from ``get_interface_repo_fields``
+                and built-in keys such as ``title``) and optional ``filters``.
+            interface_uuid: HTML interface holding the page.
+
+        Returns:
+            The element ``id`` (and ``uuid``) and the ``dataSources`` set, each with
+            ``filters`` as an object or ``None``.
+
+        Raises:
+            pydantic.ValidationError: ``data_sources`` breaks a source rule; nothing
+                is sent.
+            ValueError: The element is not on page ``page_id``, is not ``customCode``,
+                or the update reports ``success=false``.
+            PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: The caller cannot manage a repo that a new or
+                widened source reads (the API answers "Permission denied" with no
+                code); nothing is stored.
+        """
+        sources = InterfaceDataSources.model_validate(data_sources)
+        element = _stored_custom_code_element(
+            await self.get_html_interface(interface_uuid),
+            interface_uuid=interface_uuid,
+            page_id=page_id,
+            element_id=element_id,
+        )
+        data = await _execute_query_with_portal_errors(
+            self.execute_interfaces_query,
+            UPDATE_ELEMENT_MUTATION,
+            {
+                "input": {
+                    "element_id": element_id,
+                    "page_id": page_id,
+                    "metadata": _serialize_interfaces_json(element["metadata"]),
+                    "editable": element["editable"],
+                    "data_sources": _data_source_inputs(sources),
+                }
+            },
+        )
+        _require_update_success(data, element_id=element_id, page_id=page_id)
+        return _with_uuid_alias(
+            {"id": element_id, "dataSources": sources.model_dump(by_alias=True)}
+        )
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).
@@ -836,13 +1059,7 @@ class PortalService:
             UPDATE_ELEMENT_MUTATION,
             {"input": _graphql_update_element_input(validated)},
         )
-        update_payload = data.get("updateElement") or {}
-        if not update_payload.get("success"):
-            msg = (
-                f"updateElement returned success=false for element_id={element_id!r} "
-                f"on page_id={page_id!r}."
-            )
-            raise ValueError(msg)
+        _require_update_success(data, element_id=element_id, page_id=page_id)
         return _with_uuid_alias(
             {
                 "id": validated.element_id,

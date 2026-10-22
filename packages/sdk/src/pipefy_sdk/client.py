@@ -52,7 +52,7 @@ from pipefy_sdk.models.attachment import (
 from pipefy_sdk.models.field_definition import FieldTypeId
 from pipefy_sdk.models.inbox_email import InboxEmailDraft
 from pipefy_sdk.models.knowledge_base import DataLookupCondition
-from pipefy_sdk.models.portal import PortalPageLayoutRow
+from pipefy_sdk.models.portal import InterfaceDataSource, PortalPageLayoutRow
 from pipefy_sdk.services.advanced_automations_service import AdvancedAutomationsService
 from pipefy_sdk.services.ai_agent_service import AiAgentService
 from pipefy_sdk.services.attachment_service import AttachmentService
@@ -2152,6 +2152,84 @@ class PipefyClient:
         """
         return await self._portal_service.write_html_document(
             page_id=page_id, element_id=element_id, content=content
+        )
+
+    async def list_interface_repos(
+        self,
+        organization_id: str | int,
+        *,
+        interface_uuid: str | None = None,
+        repo_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List the pipes and tables an interface element can take as a data source.
+
+        Args:
+            organization_id: Numeric organization id; a uuid is rejected.
+            interface_uuid: Interface the source is for. For a portal or
+                sub-portal, the organization's findable published pipes qualify;
+                otherwise the published pipes and tables the caller administers.
+            repo_name: Case-insensitive part of the repo name.
+
+        Raises:
+            ValueError: ``organization_id`` is not numeric; nothing is sent.
+        """
+        return await self._portal_service.list_interface_repos(
+            organization_id, interface_uuid=interface_uuid, repo_name=repo_name
+        )
+
+    async def get_interface_repo_fields(
+        self, repo_uuid: str, *, interface_uuid: str | None = None
+    ) -> list[dict[str, Any]]:
+        """List a pipe's or table's custom fields, for an interface data source.
+
+        A custom field's data source key is its ``uuid``. The built-in keys (such
+        as ``title``) come from ``interfaceHtmlGuidelines`` ``filters.fixedColumnNames``.
+
+        Args:
+            repo_uuid: The repo's uuid, as ``list_interface_repos`` returns it.
+            interface_uuid: Interface the source is for.
+
+        Raises:
+            ValueError: The response has no repo structure.
+            PipefyGraphQLError: No repo has this uuid, or the caller cannot read it.
+        """
+        return await self._portal_service.get_interface_repo_fields(
+            repo_uuid, interface_uuid=interface_uuid
+        )
+
+    async def set_interface_sources(
+        self,
+        page_id: str,
+        element_id: str,
+        data_sources: list[InterfaceDataSource | dict[str, Any]],
+        *,
+        interface_uuid: str,
+    ) -> dict[str, Any]:
+        """Replace the data sources of an HTML interface's ``customCode`` element.
+
+        The element's ``metadata`` and ``editable`` are read and sent back unchanged.
+
+        Args:
+            page_id: Page holding the element.
+            element_id: The page's ``customCode`` element.
+            data_sources: The complete source list (``id``, ``name``, ``repoId``,
+                ``fieldKeys``, optional ``filters``); ``[]`` removes them all.
+            interface_uuid: HTML interface holding the page.
+
+        Returns:
+            The element ``id`` (and ``uuid``) and the ``dataSources`` set.
+
+        Raises:
+            pydantic.ValidationError: ``data_sources`` breaks a source rule; nothing
+                is sent.
+            ValueError: The element is not on page ``page_id``, is not ``customCode``,
+                or the update reports ``success=false``.
+            PortalPermissionError: The caller cannot update the interface.
+            PipefyGraphQLError: The caller cannot manage a repo that a new or
+                widened source reads; nothing is stored.
+        """
+        return await self._portal_service.set_interface_sources(
+            page_id, element_id, data_sources, interface_uuid=interface_uuid
         )
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:

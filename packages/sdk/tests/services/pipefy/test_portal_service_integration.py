@@ -1,9 +1,9 @@
 """Live portal read scenarios for PortalService.
 
 Requires valid Pipefy credentials in repo-root **``.env``** (``PIPEFY_*``). All tests
-require ``PIPEFY_PORTAL_ORG_UUID`` (org where the token has ``manage_portals``), except
-the HTML interface write test, which writes only to the disposable interface named by
-``PIPEFY_HTML_INTERFACE_UUID``.
+require ``PIPEFY_PORTAL_ORG_UUID`` (org where the token has ``manage_portals``), or
+``PIPEFY_HTML_INTERFACE_UUID``, a disposable HTML interface: the tests that read or
+write one HTML interface use only that one.
 Unit tests use fictional ids in ``_shared.fixture_ids`` — never commit real org ids
 into test source. See ``docs/config.md`` and ``.env.example``.
 
@@ -28,8 +28,9 @@ from _shared.live_settings import (
     live_resolved_auth,
     require_live_creds,
 )
+from gql import gql
 
-from pipefy_sdk import PipefyGraphQLError
+from pipefy_sdk import InterfaceDataSource, PipefyGraphQLError
 from pipefy_sdk.client import build_executors
 from pipefy_sdk.exceptions import HtmlValidationError, PortalPermissionError
 from pipefy_sdk.services.portal_service import PortalService
@@ -472,3 +473,165 @@ async def test_live_publish_sub_portal_cycle(
                 await live_portal_service.delete_sub_portal(sub_portal_uuid)
             except (PortalPermissionError, PipefyGraphQLError, ValueError):
                 pass
+
+
+async def _numeric_organization_id(org_uuid: str) -> str:
+    """The numeric id ``interfaceRepos`` takes, for the org with this uuid."""
+    public = build_executors(live_pipefy_settings(), live_resolved_auth()).public
+    data = await public.execute_query(gql("query { organizations { id uuid } }"), {})
+    return next(o["id"] for o in data["organizations"] if o["uuid"] == org_uuid)
+
+
+async def _first_custom_code_element(
+    service: PortalService, interface_uuid: str
+) -> tuple[str, dict]:
+    """Page id and element of the interface's first ``customCode`` element, or skip."""
+    detail = await service.get_html_interface(interface_uuid)
+    target = next(
+        (
+            (page["id"], element)
+            for page in detail["pages"]
+            for element in page["elements"]
+            if element["type"] == "customCode"
+        ),
+        None,
+    )
+    if target is None:
+        pytest.skip(f"HTML interface {interface_uuid} has no customCode element")
+    return target
+
+
+async def _first_bindable_repo(service: PortalService, interface_uuid: str) -> dict:
+    """The first repo the token may bind on the disposable interface, or skip."""
+    org_id = await _numeric_organization_id(_require_portal_org_uuid())
+    repos = await service.list_interface_repos(org_id, interface_uuid=interface_uuid)
+    if not repos:
+        pytest.skip(
+            "The token administers no published pipe or table in "
+            "PIPEFY_PORTAL_ORG_UUID, so it can bind no source."
+        )
+    return repos[0]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_live_list_interface_repos_lists_bindable_pipes_and_tables(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: the listing runs on the numeric org id and returns repo uuids."""
+    repo = await _first_bindable_repo(
+        live_portal_service, _require_disposable_html_interface_uuid()
+    )
+
+    assert uuid.UUID(repo["uuid"])
+    assert repo["type"] in {"Pipe", "Table"}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_live_get_interface_repo_fields_of_a_declared_source(
+    live_portal_service: PortalService,
+) -> None:
+    """Smoke: a source's repo lists its custom fields, each keyed by uuid."""
+    interface_uuid = _require_disposable_html_interface_uuid()
+    _page_id, element = await _first_custom_code_element(
+        live_portal_service, interface_uuid
+    )
+    if not element["dataSources"]:
+        pytest.skip(f"HTML interface {interface_uuid} declares no data source")
+
+    fields = await live_portal_service.get_interface_repo_fields(
+        element["dataSources"][0]["repoId"], interface_uuid=interface_uuid
+    )
+
+    assert fields
+    assert all(uuid.UUID(field["uuid"]) and field["label"] for field in fields)
+
+
+_OPEN_RECORDS_FILTER = {
+    "id": "f9e9c8b0-0000-4000-8000-000000000001",
+    "type": "root",
+    "conjunction": "and",
+    "filterSet": [
+        {
+            "id": "a1b2c3d4-0000-4000-8000-000000000002",
+            "columnName": "title",
+            "operator": "not_empty",
+            "value": None,
+        }
+    ],
+}
+
+
+def _stored_sources(detail: dict, element_id: str) -> list[dict]:
+    """The element's sources as read, in the shape ``set_interface_sources`` returns."""
+    element = {
+        candidate["id"]: candidate
+        for page in detail["pages"]
+        for candidate in page["elements"]
+    }[element_id]
+    return [
+        InterfaceDataSource.model_validate(source).model_dump(by_alias=True)
+        for source in element["dataSources"]
+    ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_live_set_interface_sources_round_trip_keeps_handles_and_filters(
+    live_portal_service: PortalService,
+) -> None:
+    """Sources found through the discovery reads are set, read back whole, and kept.
+
+    Writes only the disposable interface, and puts its element's sources back.
+    """
+    interface_uuid = _require_disposable_html_interface_uuid()
+    page_id, element = await _first_custom_code_element(
+        live_portal_service, interface_uuid
+    )
+    repo = await _first_bindable_repo(live_portal_service, interface_uuid)
+    fields = await live_portal_service.get_interface_repo_fields(
+        repo["uuid"], interface_uuid=interface_uuid
+    )
+    custom_keys = [field["uuid"] for field in fields if not field["archived"]][:1]
+    wanted = [
+        {
+            "id": "live-open-records",
+            "name": "Live open records",
+            "repoId": repo["uuid"],
+            "fieldKeys": ["title", *custom_keys],
+            "filters": _OPEN_RECORDS_FILTER,
+        },
+        {
+            "id": "live-all-records",
+            "name": "Live all records",
+            "repoId": repo["uuid"],
+            "fieldKeys": ["title"],
+            "filters": None,
+        },
+    ]
+
+    result = await live_portal_service.set_interface_sources(
+        page_id, element["id"], wanted, interface_uuid=interface_uuid
+    )
+    try:
+        after_set = await live_portal_service.get_html_interface(interface_uuid)
+        await live_portal_service.update_portal_element(
+            element["id"],
+            page_id,
+            type="customCode",
+            metadata=element["metadata"],
+            portal_uuid=interface_uuid,
+        )
+        after_update = await live_portal_service.get_html_interface(interface_uuid)
+    finally:
+        await live_portal_service.set_interface_sources(
+            page_id,
+            element["id"],
+            element["dataSources"],
+            interface_uuid=interface_uuid,
+        )
+
+    assert result["dataSources"] == wanted
+    assert _stored_sources(after_set, element["id"]) == wanted
+    assert _stored_sources(after_update, element["id"]) == wanted

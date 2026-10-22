@@ -114,6 +114,8 @@ GET_HTML_INTERFACE_QUERY = gql(
                 elements {
                     id
                     type
+                    metadata
+                    editable
                     dataSources {
                         id
                         name
@@ -129,6 +131,66 @@ GET_HTML_INTERFACE_QUERY = gql(
                         createdAt
                     }
                 }
+            }
+        }
+    }
+    """
+)
+
+# The schema offers `repos` for the deprecated `interfaceRepos`, but the API answers `repos` with an error.
+LIST_INTERFACE_REPOS_QUERY = gql(
+    """
+    query ListInterfaceRepos(
+        $orgId: ID!
+        $interfaceUuid: ID
+        $repoName: String
+        $first: Int
+        $after: String
+    ) {
+        interfaceRepos(
+            orgId: $orgId
+            interfaceUuid: $interfaceUuid
+            repoName: $repoName
+            first: $first
+            after: $after
+        ) {
+            edges {
+                node {
+                    id
+                    uuid
+                    suid
+                    name
+                    type
+                    icon
+                    color
+                    noun
+                }
+            }
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+        }
+    }
+    """
+)
+
+GET_INTERFACE_REPO_FIELDS_QUERY = gql(
+    """
+    query GetInterfaceRepoFields($repoId: ID!, $interfaceId: ID) {
+        interfacesRepoStructure(repoId: $repoId, interfaceId: $interfaceId) {
+            fields {
+                id
+                uuid
+                label
+                type
+                phaseId
+                archived
+                required
+                options
+                description
+                helpText
+                connectedRepoId
             }
         }
     }
@@ -320,7 +382,9 @@ __all__ = [
     "DUPLICATE_ELEMENT_MUTATION",
     "FIND_OR_CREATE_PORTAL_MUTATION",
     "GET_HTML_INTERFACE_QUERY",
+    "GET_INTERFACE_REPO_FIELDS_QUERY",
     "GET_PORTAL_QUERY",
+    "LIST_INTERFACE_REPOS_QUERY",
     "LIST_INTERFACES_QUERY",
     "LIST_PORTALS_QUERY",
     "SORT_PAGES_MUTATION",
