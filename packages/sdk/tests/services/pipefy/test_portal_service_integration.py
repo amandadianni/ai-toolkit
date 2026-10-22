@@ -243,13 +243,10 @@ async def test_live_write_html_document_rejects_a_script_and_stores_nothing(
 async def test_live_get_html_interface_data_sources_carry_id_name_and_filters(
     live_portal_service: PortalService,
 ) -> None:
-    """Smoke: every declared source of an HTML interface carries its handle fields."""
-    org_uuid = _require_portal_org_uuid()
+    """Smoke: every declared source of the disposable interface carries its handle fields."""
+    interface_uuid = _require_disposable_html_interface_uuid()
 
-    interfaces = await live_portal_service.list_html_interfaces(org_uuid)
-    if not interfaces:
-        pytest.skip(f"No HTML interface found for org {org_uuid}")
-    detail = await live_portal_service.get_html_interface(interfaces[0]["uuid"])
+    detail = await live_portal_service.get_html_interface(interface_uuid)
     sources = [
         source
         for page in detail["pages"]
@@ -257,7 +254,7 @@ async def test_live_get_html_interface_data_sources_carry_id_name_and_filters(
         for source in element["dataSources"]
     ]
     if not sources:
-        pytest.skip("First HTML interface declares no data sources")
+        pytest.skip(f"HTML interface {interface_uuid} declares no data sources")
 
     assert [s for s in sources if not {"id", "name", "filters"} <= s.keys()] == []
 
@@ -508,11 +505,13 @@ async def test_live_publish_sub_portal_cycle(
                 pass
 
 
-async def _numeric_organization_id(org_uuid: str) -> str:
-    """The numeric id ``interfaceRepos`` takes, for the org with this uuid."""
+async def _numeric_organization_id(org_identifier: str) -> str:
+    """The numeric id ``interfaceRepos`` takes; ``PIPEFY_PORTAL_ORG_UUID`` may hold it."""
+    if org_identifier.isdigit():
+        return org_identifier
     public = build_executors(live_pipefy_settings(), live_resolved_auth()).public
     data = await public.execute_query(gql("query { organizations { id uuid } }"), {})
-    return next(o["id"] for o in data["organizations"] if o["uuid"] == org_uuid)
+    return next(o["id"] for o in data["organizations"] if o["uuid"] == org_identifier)
 
 
 async def _first_custom_code_element(
