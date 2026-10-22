@@ -127,6 +127,8 @@ async def test_live_get_interface_html_guidelines_returns_the_full_shape(
     try:
         guidelines = await live_portal_service.get_interface_html_guidelines()
     except PipefyGraphQLError as exc:
+        if "interfaceHtmlGuidelines" not in str(exc) or "doesn't exist" not in str(exc):
+            raise
         pytest.skip(f"interfaceHtmlGuidelines not available on this backend: {exc}")
 
     for key in (

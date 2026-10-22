@@ -228,6 +228,6 @@ for n in m.body:
             print(len(v.args[0].elts))"
 ```
 
-Expect **188** tool names in `PIPEFY_TOOL_NAMES` and **188** data rows in the parity table (excluding the header rows).
+Expect **189** tool names in `PIPEFY_TOOL_NAMES` and **189** data rows in the parity table (excluding the header rows).
 
 When adding or removing an MCP tool, update **this file** and `PIPEFY_TOOL_NAMES` in the same change set.

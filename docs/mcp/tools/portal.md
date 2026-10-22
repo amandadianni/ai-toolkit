@@ -1,6 +1,6 @@
 # Portal
 
-Read and manage Pipefy portals (Interfaces schema): list org portals, fetch detail, create/update/delete portal metadata, manage pages (create, update, delete, sort, layout), manage page elements (create, update, delete, duplicate), and manage sub-portals (create, attach, publish, unpublish, detach, delete). **20 tools** — parity matrix rows in [`docs/parity.md`](../../parity.md).
+Read and manage Pipefy portals (Interfaces schema): list org portals, fetch detail, create/update/delete portal metadata, manage pages (create, update, delete, sort, layout), manage page elements (create, update, delete, duplicate), manage sub-portals (create, attach, publish, unpublish, detach, delete), and fetch the HTML/CSS authoring rules for `customCode` content. **21 tools** — parity matrix rows in [`docs/parity.md`](../../parity.md).
 
 Most portal tools call the **Interfaces** GraphQL endpoint (`interfaces_graphql_url`, default `https://app.pipefy.com/graphql/interfaces`), derived from `PIPEFY_BASE_URL`. Sub-portal **attach**, **publish**, **unpublish**, **detach**, and **delete** use **internal_api** (`<PIPEFY_BASE_URL>/internal_api`); only **`create_sub_portal`** uses Interfaces (`createSubPortal`).
 
@@ -104,6 +104,7 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 | Tool | Read-only | Role |
 |------|-----------|------|
 | `list_portals` | Yes | Flat list: `uuid`, `name`, `visibility`, `subType`. Optional `search_term`. |
+| `get_interface_html_guidelines` | Yes | No argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. |
 | `get_portal` | Yes | Full portal: `published`, `pages[]`, `elements[]`, `subPortals[]`. |
 | `create_portal` | No | Idempotent main portal (`findOrCreateInterfaceByTemplate`). |
 | `update_portal` | No | `name`, `visibility` (`internal` \| `private` \| `public`), `color`, `icon`, `display_pipefy_header`. |
