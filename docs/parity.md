@@ -2,7 +2,7 @@
 
 This matrix is the source of truth for **MCP tool ↔ `pipefy` CLI** coverage. Update it whenever MCP tools or CLI commands are added, renamed, or removed.
 
-**Registry source:** `PIPEFY_TOOL_NAMES` in `packages/mcp/src/pipefy_mcp/tools/registry.py` (must stay in sync with this table: **189** tools).
+**Registry source:** `PIPEFY_TOOL_NAMES` in `packages/mcp/src/pipefy_mcp/tools/registry.py` (must stay in sync with this table: **192** tools).
 
 **Later CLI coverage:** areas such as attachments, field conditions, email, audit export, traditional automations, exports/usage, introspection, and raw GraphQL appear as **shipped** below when the matching Typer commands exist in `packages/cli`.
 
@@ -149,6 +149,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `get_pipe_report_columns` | `pipefy report-pipe columns` | shipped | Reports domain. |
 | `get_pipe_report_export` | (poll via `pipefy report-pipe export --format json`) | shipped | Reports + exports. |
 | `get_pipe_report_filterable_fields` | `pipefy report-pipe filterable-fields` | shipped | Reports domain. |
+| `get_interface_repo_fields` | — | deferred | Interfaces `interfacesRepoStructure`; read-only; a repo's custom fields, each keyed by `uuid` for a data source's `fieldKeys`. CLI twin and remote exposure come with the other HTML interface tools. |
 | `get_interface_html_guidelines` | — | deferred | Interfaces schema; read-only, no argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. MCP-first; CLI twin considered alongside `write_interface_html`. |
 | `get_pipe_reports` | `pipefy report-pipe list` | shipped | Reports domain. |
 | `get_portal` | `pipefy portal get` | shipped | Interfaces schema; read-only; includes `published`. |
@@ -164,6 +165,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `introspect_query` | `pipefy introspect query` | shipped | — |
 | `introspect_type` | `pipefy introspect type` | shipped | — |
 | `invite_members` | `pipefy member invite` | shipped | — |
+| `list_interface_repos` | — | deferred | Interfaces `interfaceRepos`; read-only; numeric `organization_id` only; the pipes and tables an interface can take as data sources, every page followed. CLI twin and remote exposure come with the other HTML interface tools. |
 | `list_organizations` | `pipefy org list` | shipped | Lists organizations the caller can access; no id required. |
 | `list_portals` | `pipefy portal list` | shipped | `--organization-uuid`; at most one main portal per org. |
 | `move_card_to_phase` | `pipefy card move` | shipped | (`--phase`). On required-field failures MCP may return `success: false` naming the field (and an optional hide hint); CLI still returns the raw SDK / GraphQL error (known MCP-ahead behavior). |
@@ -176,6 +178,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `send_email_with_template` | `pipefy email template send` | shipped | (`--card`, `--template`). MCP two-step with `confirmation_token`: the preview returns the message resolved for the card, and a changed resolution returns a fresh preview. CLI prints the email and exits 2 unless `--yes`. |
 | `send_inbox_email` | `pipefy email inbox send` | shipped | (`--from-email`, `--to`, `--subject`, `--body`). MCP two-step with `confirmation_token`: the preview returns the message, and the token binds to it. CLI prints the email and exits 2 unless `--yes`. |
 | `set_default_llm_provider` | `pipefy ai-provider default set` | shipped | Organization-scoped; exactly one of `--provider-id` / `--system-provider-id`. |
+| `set_interface_sources` | — | deferred | Interfaces `updateElement` on an HTML interface's `customCode` element; replaces its data sources (`[]` removes them), keeping its `metadata` and `editable`. Sources are checked before the call. CLI twin and remote exposure come with the other HTML interface tools. |
 | `set_llm_provider_active_status` | `pipefy ai-provider set-active-status` | shipped | Custom (BYOM) provider; `--active/--inactive`; org from session. |
 | `set_role` | `pipefy member set-role` | shipped | — |
 | `set_table_record_field_value` | `pipefy record update` | shipped | (``--field-id`` + ``--value``). |
@@ -228,6 +231,6 @@ for n in m.body:
             print(len(v.args[0].elts))"
 ```
 
-Expect **189** tool names in `PIPEFY_TOOL_NAMES` and **189** data rows in the parity table (excluding the header rows).
+Expect **192** tool names in `PIPEFY_TOOL_NAMES` and **192** data rows in the parity table (excluding the header rows).
 
 When adding or removing an MCP tool, update **this file** and `PIPEFY_TOOL_NAMES` in the same change set.
