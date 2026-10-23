@@ -2260,8 +2260,10 @@ class PipefyClient:
         Args:
             organization_uuid: Organization UUID or numeric organization id.
             name: Interface name; also used as the one page's title.
-            data_sources: Optional source bindings for the page's element
-                (``repoId``, ``fieldKeys``, optional ``id``, ``name``, ``filters``).
+            data_sources: The page's element's source bindings; ``[]``/``None``
+                for none. Each source has ``id`` (the handle the HTML reads it
+                by), ``name``, ``repoId``, ``fieldKeys`` (1 to 30) and optional
+                ``filters``. At most 10 sources; ``id``/``name`` unique among them.
         """
         return await self._portal_service.create_interface(
             organization_uuid, name, data_sources=data_sources

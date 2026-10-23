@@ -549,6 +549,26 @@ async def test_get_interface_html_not_found_returns_error_envelope(
 
 
 @pytest.mark.anyio
+async def test_get_interface_html_not_found_graphql_error_names_the_interface(
+    portal_session, mock_portal_client, extract_payload
+):
+    """A raw not-found GraphQL error must not reach the agent verbatim."""
+    mock_portal_client.get_html_interface = AsyncMock(
+        side_effect=PipefyGraphQLError([{"message": "Couldn't find the interface"}])
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "get_interface_html", {"interface_uuid": "html-missing"}
+        )
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is False
+    assert tool_error_message(payload) == "No HTML interface has uuid 'html-missing'."
+
+
+@pytest.mark.anyio
 async def test_write_interface_html_success(
     portal_session, mock_portal_client, extract_payload
 ):
@@ -703,6 +723,36 @@ async def test_create_html_interface_write_failure_returns_ids_to_retry(
     assert "page_id='page-new-1'" in message
     assert "element_id='el-new-1'" in message
     assert "do not call create_html_interface again" in message
+
+
+@pytest.mark.anyio
+async def test_create_html_interface_no_page_returned_warns_before_retry(
+    portal_session, mock_portal_client, extract_payload
+):
+    """createInterface succeeding with no usable page must not be retried blindly."""
+    mock_portal_client.create_interface = AsyncMock(
+        return_value={**_CREATED_HTML_INTERFACE, "pages": []}
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool(
+            "create_html_interface",
+            {
+                "organization_uuid": "org-abc-123",
+                "name": "Open purchase requests",
+                "html": "<div>Hello</div>",
+            },
+        )
+
+    assert result.is_error is False
+    payload = extract_payload(result)
+    assert payload["success"] is False
+    assert payload["error"]["details"]["uuid"] == "html-uuid-new"
+    message = tool_error_message(payload)
+    assert "may already exist" in message
+    assert "get_interface_html" in message
+    assert "instead of calling create_html_interface again" in message
+    mock_portal_client.write_html_document.assert_not_awaited()
 
 
 @pytest.mark.anyio

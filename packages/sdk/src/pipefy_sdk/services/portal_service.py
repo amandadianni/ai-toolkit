@@ -274,10 +274,12 @@ def _graphql_update_element_input(
 def _with_parsed_data_source_filters(element: dict[str, Any]) -> dict[str, Any]:
     """Parse each data source's ``filters`` back into a dict when read as a JSON string.
 
-    Writes accept ``filters`` as a dict and serialize it before sending (the
-    Interfaces Json scalar rides the wire as a string); reads otherwise hand
-    that same string straight back, so a value an agent reads is rejected if
-    copied unchanged into a write (``must be a JSON object``).
+    ``InterfaceDataSource.filters`` already decodes a JSON string on write, so a
+    value an agent reads and sends back unchanged needs to already be a dict;
+    otherwise it fails that model's own validation (``must be a JSON object``),
+    not anything in this module. Scoped to the HTML interface read paths
+    (``get_html_interface``, ``create_interface``): ``create_portal_page`` and
+    ``update_portal_page`` keep returning ``filters`` as the raw string.
     """
     sources = element.get("dataSources")
     if not isinstance(sources, list):
@@ -300,11 +302,17 @@ def _with_parsed_data_source_filters(element: dict[str, Any]) -> dict[str, Any]:
 def _normalize_portal_page(page: dict[str, Any]) -> dict[str, Any]:
     """Normalize a portal page payload with ``uuid`` alias and element ids."""
     page_record = _with_uuid_alias(page)
-    elements = [
-        _with_parsed_data_source_filters(_with_uuid_alias(element))
-        for element in page.get("elements") or []
-    ]
+    elements = [_with_uuid_alias(element) for element in page.get("elements") or []]
     return {**page_record, "elements": elements}
+
+
+def _normalize_html_interface_page(page: dict[str, Any]) -> dict[str, Any]:
+    """``_normalize_portal_page``, plus parsing each element's data source filters."""
+    normalized = _normalize_portal_page(page)
+    elements = [
+        _with_parsed_data_source_filters(element) for element in normalized["elements"]
+    ]
+    return {**normalized, "elements": elements}
 
 
 def _normalize_portal_detail(portal: dict[str, Any]) -> dict[str, Any]:
@@ -327,7 +335,9 @@ def _normalize_portal_detail(portal: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_html_interface_detail(interface: dict[str, Any]) -> dict[str, Any]:
     """Normalize an HTML interface payload with ``uuid`` aliases on pages and elements."""
-    pages = [_normalize_portal_page(page) for page in interface.get("pages") or []]
+    pages = [
+        _normalize_html_interface_page(page) for page in interface.get("pages") or []
+    ]
     return {**_with_uuid_alias(interface), "pages": pages}
 
 
@@ -838,7 +848,9 @@ class PortalService:
         if not isinstance(interface, dict):
             msg = "createInterface returned no interface."
             raise ValueError(msg)
-        pages = [_normalize_portal_page(p) for p in interface.get("pages") or []]
+        pages = [
+            _normalize_html_interface_page(p) for p in interface.get("pages") or []
+        ]
         return {**_with_uuid_alias(interface), "pages": pages}
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:

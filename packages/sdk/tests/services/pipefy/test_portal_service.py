@@ -1306,6 +1306,33 @@ async def test_create_portal_page_forwards_optional_fields() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_create_portal_page_does_not_parse_data_source_filters() -> None:
+    """Unlike get_html_interface/create_interface, this keeps filters as the raw string."""
+    element_with_string_filters = {
+        **_CREATE_PAGE_GRAPHQL["elements"][0],
+        "dataSources": [
+            {"repoId": EXAMPLE_PIPE_REPO_ID, "filters": '{"status":{"eq":"open"}}'}
+        ],
+    }
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {
+            "createPage": {
+                "page": {
+                    **_CREATE_PAGE_GRAPHQL,
+                    "elements": [element_with_string_filters],
+                }
+            }
+        },
+    )
+
+    result = await service.create_portal_page(_INTERFACE_UUID, _PAGE_TITLE)
+
+    returned_filters = result["elements"][0]["dataSources"][0]["filters"]
+    assert returned_filters == '{"status":{"eq":"open"}}'
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_update_portal_page_calls_update_page_with_required_ids() -> None:
     """update_portal_page uses updatePage with interface_uuid and page_id."""
     update_response = {

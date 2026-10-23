@@ -414,7 +414,13 @@ class PortalTools:
                 interface = await client.get_html_interface(interface_uuid)
             except Exception as exc:  # noqa: BLE001
                 return build_error_payload(
-                    map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
+                    map_portal_error_to_message(
+                        exc,
+                        not_found_message=(
+                            f"No HTML interface has uuid '{interface_uuid}'."
+                        ),
+                        empty_fallback=_PORTAL_READ_FAILED,
+                    )
                 )
             return build_success_payload(interface, include_parsed=True)
 
@@ -451,7 +457,7 @@ class PortalTools:
                 return err
             page_id = cleaned["page_id"]
             element_id = cleaned["element_id"]
-            if not isinstance(content, str) or not content.strip():
+            if not content.strip():
                 return tool_error(
                     "Invalid 'content': must be a non-empty string.",
                     code="INVALID_ARGUMENTS",
@@ -515,13 +521,13 @@ class PortalTools:
             )
             if err is not None:
                 return err
-            if not isinstance(name, str) or not name.strip():
+            if not name.strip():
                 return tool_error(
                     "Invalid 'name': must be a non-empty string.",
                     code="INVALID_ARGUMENTS",
                 )
             name = name.strip()
-            if not isinstance(html, str) or not html.strip():
+            if not html.strip():
                 return tool_error(
                     "Invalid 'html': must be a non-empty string.",
                     code="INVALID_ARGUMENTS",
@@ -550,9 +556,14 @@ class PortalTools:
             pages = interface.get("pages") or []
             elements = pages[0].get("elements") if pages else None
             if not pages or not elements:
+                interface_uuid = interface.get("uuid")
                 return tool_error(
-                    "createInterface returned no page to write HTML into.",
-                    details={"uuid": interface.get("uuid")},
+                    "createInterface returned no page to write HTML into. The "
+                    f"interface ({interface_uuid}) may already exist; call "
+                    "get_interface_html with that uuid to check before retrying, "
+                    "instead of calling create_html_interface again, which would "
+                    "create a second, orphaned interface.",
+                    details={"uuid": interface_uuid},
                 )
             page_id = pages[0]["uuid"]
             element_id = elements[0]["uuid"]
@@ -564,10 +575,11 @@ class PortalTools:
                 interface_uuid = interface.get("uuid")
                 guidance = (
                     f"The interface ({interface_uuid}) was already created with a "
-                    "blank page. Fix the HTML and call write_interface_html with "
-                    f"page_id={page_id!r} and element_id={element_id!r} "
-                    "(also in details); do not call create_html_interface again, "
-                    "which would create a second, orphaned interface."
+                    "blank page. Resolve the error above, then call "
+                    f"write_interface_html with page_id={page_id!r} and "
+                    f"element_id={element_id!r} (also in details); do not call "
+                    "create_html_interface again, which would create a second, "
+                    "orphaned interface."
                 )
                 return tool_error(
                     f"{map_portal_error_to_message(exc)}\n\n{guidance}",
