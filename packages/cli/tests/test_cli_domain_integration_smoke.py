@@ -180,6 +180,9 @@ def test_cli_live_html_interface_create_round_trips():
             app, ["portal", "html-interface", "get", interface_uuid, "--json"]
         )
         assert get_result.exit_code == 0, get_result.stdout + (get_result.stderr or "")
-        assert json.loads(get_result.stdout)["uuid"] == interface_uuid
+        interface = json.loads(get_result.stdout)
+        assert interface["uuid"] == interface_uuid
+        content = interface["pages"][0]["elements"][0]["htmlDocument"]["content"]
+        assert content == "<div>cli smoke</div>"
     finally:
         runner.invoke(app, ["portal", "delete", interface_uuid, "--yes"])
