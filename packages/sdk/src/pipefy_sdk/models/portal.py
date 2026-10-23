@@ -19,6 +19,21 @@ from pipefy_sdk.models.validators import NonBlankStr
 
 PortalVisibility = Literal["internal", "private", "public"]
 
+PortalColor = Literal[
+    "blue",
+    "cyan",
+    "gray",
+    "green",
+    "indigo",
+    "lime",
+    "pink",
+    "purple",
+    "orange",
+    "red",
+    "sky",
+    "yellow",
+]
+
 PortalElementType = Literal[
     "text",
     "table",
@@ -95,6 +110,23 @@ class CreatePortalInput(BaseModel):
     )
 
     model_config = ConfigDict(extra="forbid")
+
+
+class CreateInterfaceInput(BaseModel):
+    """Validated input for ``createInterface`` (Interfaces schema, plain creation).
+
+    ``data_sources`` is validated separately as ``InterfaceDataSources``, not a
+    field here: it has its own rules (uniqueness, a 10-source cap) independent
+    of ``organization_uuid``/``name``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    organization_uuid: str | int = Field(
+        description="Organization UUID or numeric organization id."
+    )
+    name: NonBlankStr
+    color: PortalColor = "blue"
 
 
 class UpdatePortalInput(BaseModel):
@@ -385,6 +417,7 @@ __all__ = [
     "DeletePortalElementInput",
     "InterfaceDataSource",
     "InterfaceDataSources",
+    "PortalColor",
     "PortalElementType",
     "PortalPageLayoutRow",
     "PortalVisibility",

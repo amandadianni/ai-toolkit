@@ -66,12 +66,16 @@ def _html_validation_message(exc: HtmlValidationError) -> str:
 def map_portal_error_to_message(
     exc: BaseException,
     *,
+    not_found_message: str | None = None,
     empty_fallback: str = _PORTAL_OPERATION_FAILED,
 ) -> str:
     """Map portal SDK/GraphQL failures to agent-friendly messages.
 
     Args:
         exc: Exception raised by ``PipefyClient`` portal methods or GraphQL transport.
+        not_found_message: Message naming what the call was given, returned in
+            place of the API's own not-found text (not fit to show). Omit to
+            leave a not-found error unmapped, as every caller does today.
         empty_fallback: Non-empty message when ``str(exc)`` is blank after strip.
             Writes keep the default write-style fallback; reads pass a plain
             read-domain string.
@@ -101,6 +105,11 @@ def map_portal_error_to_message(
             code = extensions.get("code")
             if isinstance(code, str):
                 codes.append(code)
+
+    if not_found_message is not None and (
+        _NOT_FOUND_CODES.intersection(codes) or lowered.startswith("couldn't find")
+    ):
+        return not_found_message
 
     if "PERMISSION_DENIED" in codes or "permission denied" in lowered:
         return _PORTAL_PERMISSION_GUIDANCE

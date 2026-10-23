@@ -32,6 +32,7 @@ from pipefy_sdk.graphql_executor import PipefyGraphQLError
 from pipefy_sdk.models.portal import InterfaceDataSource, parse_portal_page_layout
 from pipefy_sdk.queries.observability_queries import RESOLVE_ORGANIZATION_UUID_QUERY
 from pipefy_sdk.queries.portal_queries import (
+    CREATE_INTERFACE_MUTATION,
     GET_HTML_INTERFACE_QUERY,
     GET_INTERFACE_HTML_GUIDELINES_QUERY,
     GET_INTERFACE_REPO_FIELDS_QUERY,
@@ -631,6 +632,36 @@ async def test_get_interface_html_guidelines_returns_the_full_shape() -> None:
     result = await service.get_interface_html_guidelines()
 
     assert result == _HTML_GUIDELINES_GRAPHQL
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_html_interface_parses_filters_back_into_a_dict() -> None:
+    """``filters`` rides the wire as a JSON string; reads parse it so a value an
+    agent reads can be sent back into create/write unchanged, as a dict."""
+    source_with_string_filters = {
+        "id": "open-sales",
+        "name": "Open sales",
+        "filters": '{"status":{"eq":"open"}}',
+        "repoId": EXAMPLE_PIPE_REPO_ID,
+        "repoName": "Sales",
+        "repoType": "Pipe",
+        "fieldKeys": ["amount"],
+    }
+    element = {**_CUSTOM_CODE_ELEMENT, "dataSources": [source_with_string_filters]}
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {
+            "interface": {
+                **_HTML_INTERFACE_DETAIL_GRAPHQL,
+                "pages": [{"id": "page-1", "title": "Page", "elements": [element]}],
+            }
+        },
+    )
+
+    result = await service.get_html_interface("html-uuid-1")
+
+    returned_filters = result["pages"][0]["elements"][0]["dataSources"][0]["filters"]
+    assert returned_filters == {"status": {"eq": "open"}}
 
 
 @pytest.mark.unit
@@ -1271,6 +1302,33 @@ async def test_create_portal_page_forwards_optional_fields() -> None:
             "index": 1,
         }
     }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_portal_page_does_not_parse_data_source_filters() -> None:
+    """Unlike get_html_interface/create_interface, this keeps filters as the raw string."""
+    element_with_string_filters = {
+        **_CREATE_PAGE_GRAPHQL["elements"][0],
+        "dataSources": [
+            {"repoId": EXAMPLE_PIPE_REPO_ID, "filters": '{"status":{"eq":"open"}}'}
+        ],
+    }
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {
+            "createPage": {
+                "page": {
+                    **_CREATE_PAGE_GRAPHQL,
+                    "elements": [element_with_string_filters],
+                }
+            }
+        },
+    )
+
+    result = await service.create_portal_page(_INTERFACE_UUID, _PAGE_TITLE)
+
+    returned_filters = result["elements"][0]["dataSources"][0]["filters"]
+    assert returned_filters == '{"status":{"eq":"open"}}'
 
 
 @pytest.mark.unit
@@ -3059,3 +3117,259 @@ def test_get_html_interface_selects_element_metadata_and_editable():
     assert {"metadata", "editable"} <= _selected_fields(
         GET_HTML_INTERFACE_QUERY, "pages", "elements"
     )
+
+
+_CREATE_INTERFACE_RESPONSE = {
+    "createInterface": {
+        "interface": {
+            "id": "new-interface-uuid",
+            "name": "Open purchase requests",
+            "visibility": "internal",
+            "contentModeHtml": True,
+            "pages": [
+                {
+                    "id": "new-page-uuid",
+                    "title": "Open purchase requests",
+                    "elements": [{"id": "new-element-uuid", "type": "customCode"}],
+                }
+            ],
+        },
+        "success": True,
+    }
+}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_calls_create_interface_with_validated_input() -> None:
+    """create_interface sends one page with one customCode element, data_sources: []."""
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    await service.create_interface(EXAMPLE_ORG_UUID, "Open purchase requests")
+
+    interfaces_executor.execute_query.assert_called_once()
+    query_used, variables = interfaces_executor.execute_query.call_args[0]
+    assert query_used is CREATE_INTERFACE_MUTATION
+    assert variables == {
+        "input": {
+            "org_uuid": EXAMPLE_ORG_UUID,
+            "name": "Open purchase requests",
+            "color": "blue",
+            "contentModeHtml": True,
+            "pages": [
+                {
+                    "title": "Open purchase requests",
+                    "layout": "[]",
+                    "elements": [
+                        {
+                            "type": "customCode",
+                            "metadata": "{}",
+                            "dataSources": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_sends_the_given_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    await service.create_interface(
+        EXAMPLE_ORG_UUID, "Open purchase requests", color="purple"
+    )
+
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["color"] == "purple"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_rejects_an_unknown_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    with pytest.raises(ValidationError, match="color"):
+        await service.create_interface(
+            EXAMPLE_ORG_UUID,
+            "Open purchase requests",
+            color="chartreuse",  # type: ignore[arg-type]
+        )
+
+    interfaces_executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_returns_uuid_alias() -> None:
+    """The interface, its page and its element all get the uuid alias."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    result = await service.create_interface(EXAMPLE_ORG_UUID, "Open purchase requests")
+
+    assert result["uuid"] == "new-interface-uuid"
+    assert result["name"] == "Open purchase requests"
+    assert result["pages"][0]["uuid"] == "new-page-uuid"
+    assert result["pages"][0]["elements"][0]["uuid"] == "new-element-uuid"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_sends_the_full_data_source_shape() -> None:
+    """id, name and filters ride on the element's data source, not just repoId/fieldKeys.
+
+    A ``customCode`` element requires id/name on every source, so dropping them
+    (as the normalizer shared with create_portal_element/update_portal_element
+    does) would make the backend reject any non-empty data_sources outright.
+    """
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    await service.create_interface(
+        EXAMPLE_ORG_UUID,
+        "Open purchase requests",
+        data_sources=[
+            {
+                "id": "source-1",
+                "name": "Purchase requests",
+                "repoId": EXAMPLE_PIPE_REPO_ID,
+                "fieldKeys": ["status"],
+                "filters": {"status": {"eq": "open"}},
+            }
+        ],
+    )
+
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["pages"][0]["elements"][0]["dataSources"] == [
+        {
+            "id": "source-1",
+            "name": "Purchase requests",
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "fieldKeys": ["status"],
+            "filters": json.dumps(
+                {"status": {"eq": "open"}}, separators=(",", ":"), ensure_ascii=False
+            ),
+        }
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_rejects_invalid_data_sources_before_any_call() -> None:
+    """A duplicate id across sources is rejected before resolving the org or calling createInterface."""
+    service, public_executor, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    with pytest.raises(ValidationError, match="own id"):
+        await service.create_interface(
+            EXAMPLE_ORG_UUID,
+            "Open purchase requests",
+            data_sources=[
+                {
+                    "id": "source-1",
+                    "name": "Open requests",
+                    "repoId": EXAMPLE_PIPE_REPO_ID,
+                    "fieldKeys": ["status"],
+                },
+                {
+                    "id": "source-1",
+                    "name": "All suppliers",
+                    "repoId": "repo-uuid-2",
+                    "fieldKeys": ["title"],
+                },
+            ],
+        )
+
+    public_executor.execute_query.assert_not_awaited()
+    interfaces_executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_takes_parsed_data_sources() -> None:
+    """A caller may pass already-validated InterfaceDataSource instances, not just dicts."""
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+    source = InterfaceDataSource.model_validate(
+        {
+            "id": "source-1",
+            "name": "Purchase requests",
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "fieldKeys": ["status"],
+        }
+    )
+
+    await service.create_interface(
+        EXAMPLE_ORG_UUID, "Open purchase requests", data_sources=[source]
+    )
+
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["pages"][0]["elements"][0]["dataSources"] == [
+        {
+            "id": "source-1",
+            "name": "Purchase requests",
+            "repoId": EXAMPLE_PIPE_REPO_ID,
+            "fieldKeys": ["status"],
+        }
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_numeric_org_id_resolves_via_main_graphql_client() -> (
+    None
+):
+    """Numeric org ids resolve on the public GraphQL client before createInterface."""
+    service, public_executor, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+    public_executor.execute_query = AsyncMock(
+        return_value={"organization": {"uuid": EXAMPLE_ORG_UUID}}
+    )
+
+    await service.create_interface(EXAMPLE_NUMERIC_ORG_ID, "Open purchase requests")
+
+    public_executor.execute_query.assert_called_once_with(
+        RESOLVE_ORGANIZATION_UUID_QUERY,
+        {"id": EXAMPLE_NUMERIC_ORG_ID},
+    )
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["org_uuid"] == EXAMPLE_ORG_UUID
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_raises_when_response_has_no_interface() -> None:
+    """A malformed createInterface response (no interface) raises ValueError."""
+    service, _public, _interfaces_executor = _make_interfaces_service(
+        {"createInterface": {"success": True}},
+    )
+
+    with pytest.raises(ValueError, match="createInterface returned no interface"):
+        await service.create_interface(EXAMPLE_ORG_UUID, "Open purchase requests")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_permission_denied_raises_portal_permission_error() -> (
+    None
+):
+    """A permission-denied createInterface failure maps like every other portal write."""
+    service, _public, interfaces_executor = _make_interfaces_service(None)
+    interfaces_executor.execute_query.side_effect = _PERMISSION_DENIED_ERROR
+
+    with pytest.raises(PortalPermissionError):
+        await service.create_interface(EXAMPLE_ORG_UUID, "Open purchase requests")

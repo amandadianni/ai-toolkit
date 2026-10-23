@@ -11,6 +11,7 @@ from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     DeletePortalElementInput,
     InterfaceDataSources,
+    PortalColor,
     PortalElementType,
     PortalVisibility,
     UpdatePortalElementInput,
@@ -191,7 +192,7 @@ class PortalTools:
             A successful listing does not show that the interface exists: an
             unknown ``interface_uuid`` is listed like an interface that is not a
             portal, and an organization you cannot see lists nothing, both without
-            an error. Confirm the interface with ``get_html_interface``.
+            an error. Confirm the interface with ``get_interface_html``.
 
             Args:
                 organization_id: Numeric organization id (``list_organizations``
@@ -304,7 +305,7 @@ class PortalTools:
 
             At most 10 sources. Returns the element ``uuid`` and the
             ``dataSources`` as sent, once the update reports success; they are not
-            read back. Call ``get_html_interface`` for the stored sources.
+            read back. Call ``get_interface_html`` for the stored sources.
 
             Args:
                 interface_uuid: The HTML interface's uuid.
@@ -344,6 +345,255 @@ class PortalTools:
                     )
                 )
             return build_success_payload(element, include_parsed=True)
+
+        @mcp.tool(
+            annotations=ToolAnnotations(readOnlyHint=True),
+        )
+        async def list_interfaces(
+            ctx: Context,
+            organization_uuid: PipefyId,
+            search_term: str | None = None,
+        ) -> dict[str, Any]:
+            """List an organization's HTML interfaces (``contentModeHtml``).
+
+            Grid-layout portals and sub-portals are not returned here; use
+            ``list_portals`` for those. Returns uuid, name, visibility, and
+            ``contentModeHtml`` for each interface. The response includes both
+            ``result`` (pretty-printed JSON string) and ``data`` (parsed dict)
+            for convenience.
+
+            Args:
+                organization_uuid: Organization UUID, or numeric organization id.
+                search_term: Optional name filter.
+            """
+            client = get_pipefy_client(ctx)
+            organization_uuid, err = validate_tool_id(
+                organization_uuid, "organization_uuid"
+            )
+            if err is not None:
+                return err
+            await ctx.debug(
+                f"list_interfaces: organization_uuid={organization_uuid}, "
+                f"search_term={search_term}"
+            )
+            try:
+                interfaces = await client.list_html_interfaces(
+                    organization_uuid, search_term=search_term
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
+                )
+            return build_success_payload(
+                {"interfaces": interfaces}, include_parsed=True
+            )
+
+        @mcp.tool(
+            annotations=ToolAnnotations(readOnlyHint=True),
+        )
+        async def get_interface_html(
+            ctx: Context,
+            interface_uuid: str,
+        ) -> dict[str, Any]:
+            """Fetch an HTML interface with each ``customCode`` element's live HTML.
+
+            Returns uuid, name, visibility, ``contentModeHtml``, and pages (each
+            with elements carrying ``dataSources`` and ``htmlDocument``: ``content``,
+            ``contentHash``, ``createdAt``). Raises on a grid-layout interface; use
+            ``get_portal`` for those. The response includes both ``result``
+            (pretty-printed JSON string) and ``data`` (parsed dict) for convenience.
+
+            Args:
+                interface_uuid: HTML interface UUID.
+            """
+            client = get_pipefy_client(ctx)
+            interface_uuid, err = validate_tool_id(interface_uuid, "interface_uuid")
+            if err is not None:
+                return err
+            await ctx.debug(f"get_interface_html: interface_uuid={interface_uuid}")
+            try:
+                interface = await client.get_html_interface(interface_uuid)
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_portal_error_to_message(
+                        exc,
+                        not_found_message=(
+                            f"No HTML interface has uuid '{interface_uuid}'."
+                        ),
+                        empty_fallback=_PORTAL_READ_FAILED,
+                    )
+                )
+            return build_success_payload(interface, include_parsed=True)
+
+        @mcp.tool(
+            annotations=ToolAnnotations(readOnlyHint=False),
+        )
+        async def write_interface_html(
+            ctx: Context,
+            page_id: str,
+            element_id: str,
+            content: str,
+        ) -> dict[str, Any]:
+            """Write and publish the HTML of an HTML interface's ``customCode`` element.
+
+            Call ``get_interface_html_guidelines`` first: it returns the allowed
+            tags and attributes, every forbidden construct with its violation code,
+            the ``data-pfy-*`` vocabulary, and the filter-tree format. Read the
+            element with ``get_interface_html`` before writing to it, since this
+            replaces its whole document. On ``HTML_VALIDATION_FAILED``, nothing is
+            stored; fix every listed violation and retry with the corrected HTML.
+
+            Args:
+                page_id: Page holding the element (``get_interface_html``
+                    ``pages[].uuid``).
+                element_id: The page's ``customCode`` element
+                    (``pages[].elements[].uuid``).
+                content: The whole HTML document; it replaces the live one.
+            """
+            client = get_pipefy_client(ctx)
+            cleaned, err = validate_tool_ids(
+                {"page_id": page_id, "element_id": element_id}
+            )
+            if err is not None:
+                return err
+            page_id = cleaned["page_id"]
+            element_id = cleaned["element_id"]
+            if not content.strip():
+                return tool_error(
+                    "Invalid 'content': must be a non-empty string.",
+                    code="INVALID_ARGUMENTS",
+                )
+            await ctx.debug(
+                f"write_interface_html: page_id={page_id}, element_id={element_id}"
+            )
+            try:
+                result = await client.write_html_document(
+                    page_id=page_id, element_id=element_id, content=content
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(map_portal_error_to_message(exc))
+            return build_success_payload(result, include_parsed=True)
+
+        @mcp.tool(
+            annotations=ToolAnnotations(readOnlyHint=False),
+        )
+        async def create_html_interface(
+            ctx: Context,
+            organization_uuid: PipefyId,
+            name: str,
+            html: str,
+            color: PortalColor = "blue",
+            data_sources: list[dict[str, Any]] | None = None,
+        ) -> dict[str, Any]:
+            """Create an HTML interface and write its first page in one call.
+
+            Call ``get_interface_html_guidelines`` first: it returns the allowed
+            tags and attributes, every forbidden construct with its violation code,
+            the ``data-pfy-*`` vocabulary, and the filter-tree format. Fix every
+            listed violation before retrying; this is two API calls under the
+            hood (create, then write), so a validation failure on the second
+            leaves the interface created with a blank page. The error then
+            includes ``uuid``, ``page_id`` and ``element_id``: retry the write
+            with ``write_interface_html`` using those ids, instead of calling
+            this tool again, which would create a second, orphaned interface.
+
+            ``data_sources`` binds the page's one element, which is always
+            ``customCode`` (optional; omit for none): ``{"id", "name", "repoId",
+            "fieldKeys", "filters"}``.
+
+            - ``id``: the handle the page's HTML reads the source by; ``name``:
+              its label. Both unique within the element.
+            - ``repoId``: a repo ``uuid`` from ``list_interface_repos``.
+            - ``fieldKeys``: 1 to 30 keys, custom field uuids from
+              ``get_interface_repo_fields`` and built-in keys such as ``title``.
+            - ``filters``: optional filter tree in the format
+              ``get_interface_html_guidelines`` describes, or null.
+
+            At most 10 sources.
+
+            Args:
+                organization_uuid: Organization UUID, or numeric organization id.
+                name: Interface name; also used as the one page's title.
+                html: The page's whole HTML document.
+                color: A ``PortalColor`` value, e.g. ``blue`` or ``purple``.
+                    Defaults to ``blue``.
+                data_sources: The page's element's source bindings.
+            """
+            client = get_pipefy_client(ctx)
+            organization_uuid, err = validate_tool_id(
+                organization_uuid, "organization_uuid"
+            )
+            if err is not None:
+                return err
+            if not name.strip():
+                return tool_error(
+                    "Invalid 'name': must be a non-empty string.",
+                    code="INVALID_ARGUMENTS",
+                )
+            name = name.strip()
+            if not html.strip():
+                return tool_error(
+                    "Invalid 'html': must be a non-empty string.",
+                    code="INVALID_ARGUMENTS",
+                )
+            try:
+                sources = InterfaceDataSources.model_validate(data_sources or [])
+            except ValidationError as exc:
+                return interface_sources_validation_error(exc)
+            await ctx.debug(
+                f"create_html_interface: organization_uuid={organization_uuid}, "
+                f"name={name}"
+            )
+            try:
+                interface = await client.create_interface(
+                    organization_uuid, name, color=color, data_sources=sources.root
+                )
+            except Exception as exc:  # noqa: BLE001
+                return build_error_payload(
+                    map_interface_source_error_to_message(
+                        exc,
+                        not_found_message=(
+                            "One of the data sources' repoId was not found."
+                        ),
+                    )
+                )
+            pages = interface.get("pages") or []
+            elements = pages[0].get("elements") if pages else None
+            if not pages or not elements:
+                interface_uuid = interface.get("uuid")
+                return tool_error(
+                    "createInterface returned no page to write HTML into. The "
+                    f"interface ({interface_uuid}) may already exist; call "
+                    "get_interface_html with that uuid to check before retrying, "
+                    "instead of calling create_html_interface again, which would "
+                    "create a second, orphaned interface.",
+                    details={"uuid": interface_uuid},
+                )
+            page_id = pages[0]["uuid"]
+            element_id = elements[0]["uuid"]
+            try:
+                await client.write_html_document(
+                    page_id=page_id, element_id=element_id, content=html
+                )
+            except Exception as exc:  # noqa: BLE001
+                interface_uuid = interface.get("uuid")
+                guidance = (
+                    f"The interface ({interface_uuid}) was already created with a "
+                    "blank page. Resolve the error above, then call "
+                    f"write_interface_html with page_id={page_id!r} and "
+                    f"element_id={element_id!r} (also in details); do not call "
+                    "create_html_interface again, which would create a second, "
+                    "orphaned interface."
+                )
+                return tool_error(
+                    f"{map_portal_error_to_message(exc)}\n\n{guidance}",
+                    details={
+                        "uuid": interface_uuid,
+                        "page_id": page_id,
+                        "element_id": element_id,
+                    },
+                )
+            return build_success_payload(interface, include_parsed=True)
 
         @mcp.tool(
             annotations=ToolAnnotations(readOnlyHint=False),

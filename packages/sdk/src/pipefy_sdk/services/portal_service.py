@@ -20,11 +20,13 @@ from pipefy_sdk.graphql_problem import (
     classify_exception,
 )
 from pipefy_sdk.models.portal import (
+    CreateInterfaceInput,
     CreatePortalElementInput,
     CreatePortalInput,
     DeletePortalElementInput,
     InterfaceDataSource,
     InterfaceDataSources,
+    PortalColor,
     PortalElementType,
     PortalPageLayoutRow,
     UpdatePortalElementInput,
@@ -38,6 +40,7 @@ from pipefy_sdk.queries.portal_internal_queries import (
 )
 from pipefy_sdk.queries.portal_queries import (
     CREATE_ELEMENT_MUTATION,
+    CREATE_INTERFACE_MUTATION,
     CREATE_PAGE_MUTATION,
     CREATE_SUB_PORTAL_MUTATION,
     DELETE_ELEMENT_MUTATION,
@@ -269,11 +272,48 @@ def _graphql_update_element_input(
     return payload
 
 
+def _with_parsed_data_source_filters(element: dict[str, Any]) -> dict[str, Any]:
+    """Parse each data source's ``filters`` back into a dict when read as a JSON string.
+
+    ``InterfaceDataSource.filters`` already decodes a JSON string on write, so a
+    value an agent reads and sends back unchanged needs to already be a dict;
+    otherwise it fails that model's own validation (``must be a JSON object``),
+    not anything in this module. Scoped to the HTML interface read paths
+    (``get_html_interface``, ``create_interface``): ``create_portal_page`` and
+    ``update_portal_page`` keep returning ``filters`` as the raw string.
+    """
+    sources = element.get("dataSources")
+    if not isinstance(sources, list):
+        return element
+    parsed_sources: list[Any] = []
+    for source in sources:
+        if not isinstance(source, dict):
+            parsed_sources.append(source)
+            continue
+        filters = source.get("filters")
+        if isinstance(filters, str):
+            try:
+                source = {**source, "filters": json.loads(filters)}
+            except ValueError:
+                pass
+        parsed_sources.append(source)
+    return {**element, "dataSources": parsed_sources}
+
+
 def _normalize_portal_page(page: dict[str, Any]) -> dict[str, Any]:
     """Normalize a portal page payload with ``uuid`` alias and element ids."""
     page_record = _with_uuid_alias(page)
     elements = [_with_uuid_alias(element) for element in page.get("elements") or []]
     return {**page_record, "elements": elements}
+
+
+def _normalize_html_interface_page(page: dict[str, Any]) -> dict[str, Any]:
+    """``_normalize_portal_page``, plus parsing each element's data source filters."""
+    normalized = _normalize_portal_page(page)
+    elements = [
+        _with_parsed_data_source_filters(element) for element in normalized["elements"]
+    ]
+    return {**normalized, "elements": elements}
 
 
 def _normalize_portal_detail(portal: dict[str, Any]) -> dict[str, Any]:
@@ -296,7 +336,9 @@ def _normalize_portal_detail(portal: dict[str, Any]) -> dict[str, Any]:
 
 def _normalize_html_interface_detail(interface: dict[str, Any]) -> dict[str, Any]:
     """Normalize an HTML interface payload with ``uuid`` aliases on pages and elements."""
-    pages = [_normalize_portal_page(page) for page in interface.get("pages") or []]
+    pages = [
+        _normalize_html_interface_page(page) for page in interface.get("pages") or []
+    ]
     return {**_with_uuid_alias(interface), "pages": pages}
 
 
@@ -741,6 +783,80 @@ class PortalService:
             GET_INTERFACE_HTML_GUIDELINES_QUERY, {}
         )
         return data["interfaceHtmlGuidelines"]
+
+    async def create_interface(
+        self,
+        organization_uuid: str | int,
+        name: str,
+        *,
+        color: PortalColor = "blue",
+        data_sources: list[InterfaceDataSource | dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Create an HTML interface (``contentModeHtml``) with one ``customCode`` page.
+
+        One ``createInterface`` call makes the interface, a page titled ``name``,
+        and that page's single ``customCode`` element; ``write_html_document``
+        then writes the page's HTML. ``data_sources`` always rides on the
+        element, empty or not: the API fails the create when it is omitted.
+
+        Args:
+            organization_uuid: Organization UUID or numeric organization id.
+            name: Interface name; also used as the one page's title.
+            color: A ``PortalColor`` value, e.g. ``blue`` or ``purple``.
+                Defaults to ``blue``.
+            data_sources: The page's element's source bindings; ``[]``/``None``
+                for none. Each source has ``id`` (the handle the HTML reads it
+                by), ``name``, ``repoId``, ``fieldKeys`` (1 to 30) and optional
+                ``filters``. At most 10 sources; ``id``/``name`` unique among them.
+
+        Returns:
+            Created interface summary with ``uuid`` alias for ``id``.
+
+        Raises:
+            pydantic.ValidationError: ``data_sources`` breaks a source rule;
+                nothing is sent.
+        """
+        validated = CreateInterfaceInput.model_validate(
+            {"organization_uuid": organization_uuid, "name": name, "color": color}
+        )
+        sources = InterfaceDataSources.model_validate(data_sources or [])
+        resolved_org_uuid = await resolve_organization_uuid(
+            self._public_executor.execute_query,
+            validated.organization_uuid,
+        )
+        element = {
+            "type": "customCode",
+            "metadata": _serialize_interfaces_json({}),
+            # Nested under pages[].elements[], this field is dataSources on the wire
+            # (unlike createElement's top-level data_sources, which is snake_case).
+            "dataSources": _data_source_inputs(sources),
+        }
+        page = {
+            "title": validated.name,
+            "layout": _serialize_interfaces_json([]),
+            "elements": [element],
+        }
+        data = await _execute_query_with_portal_errors(
+            self.execute_interfaces_query,
+            CREATE_INTERFACE_MUTATION,
+            {
+                "input": {
+                    "org_uuid": resolved_org_uuid,
+                    "name": validated.name,
+                    "color": validated.color,
+                    "contentModeHtml": True,
+                    "pages": [page],
+                }
+            },
+        )
+        interface = (data.get("createInterface") or {}).get("interface")
+        if not isinstance(interface, dict):
+            msg = "createInterface returned no interface."
+            raise ValueError(msg)
+        pages = [
+            _normalize_html_interface_page(p) for p in interface.get("pages") or []
+        ]
+        return {**_with_uuid_alias(interface), "pages": pages}
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:
         """Create or fetch the organization's main portal (idempotent template flow).
