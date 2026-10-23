@@ -569,6 +569,13 @@ _HTML_GUIDELINES_GRAPHQL = {
     "cssRules": [
         {"code": "CSS_IMPORT_FORBIDDEN", "message": "No @import.", "subject": "@import"}
     ],
+    "dataPfyVocabulary": [
+        {
+            "attribute": "data-pfy-limit",
+            "purpose": "On a source container: how many records to show per page.",
+            "valueFormat": "An integer.",
+        }
+    ],
     "designSystem": None,
     "errorCodes": [
         {"code": "TAG_NOT_ALLOWED", "description": "A tag outside allowedTags."}
@@ -2593,6 +2600,7 @@ def test_get_interface_html_guidelines_selects_every_guideline_field():
         "allowedTags",
         "authoringNotes",
         "cssRules",
+        "dataPfyVocabulary",
         "designSystem",
         "errorCodes",
         "filters",
@@ -2617,6 +2625,15 @@ def test_get_interface_html_guidelines_selects_every_guideline_field():
     assert _selection_names(error_codes.selection_set.selections) == {
         "code",
         "description",
+    }
+
+    vocabulary = _selected_field(
+        guidelines.selection_set.selections, "dataPfyVocabulary"
+    )
+    assert _selection_names(vocabulary.selection_set.selections) == {
+        "attribute",
+        "purpose",
+        "valueFormat",
     }
 
     filters = _selected_field(guidelines.selection_set.selections, "filters")

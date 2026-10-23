@@ -212,6 +212,11 @@ GET_INTERFACE_HTML_GUIDELINES_QUERY = gql(
                 message
                 subject
             }
+            dataPfyVocabulary {
+                attribute
+                purpose
+                valueFormat
+            }
             designSystem
             errorCodes {
                 code

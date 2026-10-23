@@ -2239,9 +2239,10 @@ class PipefyClient:
         """Fetch the HTML/CSS rules and data-source filter format for ``customCode`` content.
 
         Returns the allowed tags and attributes, every forbidden tag/attribute/CSS
-        construct with its violation code, the full error-code list, the
-        filter-tree format (a worked example plus the operators each field type
-        supports), content-size and nesting limits, and a ``designSystem``
+        construct with its violation code, the full error-code list,
+        ``dataPfyVocabulary`` (each ``data-pfy-*`` attribute's purpose and value
+        format), the filter-tree format (a worked example plus the operators each
+        field type supports), content-size and nesting limits, and a ``designSystem``
         snapshot: a component catalog (tokens, icons and components with usage
         examples) to style generated content consistently. The rules are the
         same for every organization.

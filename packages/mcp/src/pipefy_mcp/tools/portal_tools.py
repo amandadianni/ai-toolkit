@@ -153,7 +153,9 @@ class PortalTools:
             Call this before writing an HTML interface's customCode element.
             Returns every allowed tag and attribute, every forbidden
             tag/attribute/CSS construct with its violation code, the full
-            error-code list, the filter-tree
+            error-code list, ``dataPfyVocabulary`` (each ``data-pfy-*``
+            attribute's purpose and value format: how the HTML binds a data
+            source, repeats a row per record, and shows a field), the filter-tree
             format (a worked example plus the operators each field type supports),
             content-size and nesting limits, and a ``designSystem`` snapshot: a
             component catalog (tokens, icons and components with usage examples)
