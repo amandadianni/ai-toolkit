@@ -411,7 +411,10 @@ def _stored_custom_code_element(
         interface_uuid=interface_uuid,
         page_id=page_id,
         element_id=element_id,
-        not_found_hint="get_html_interface lists its pages and elements.",
+        not_found_hint=(
+            "Check interface_uuid and element_id: reading the interface lists its "
+            "pages and elements."
+        ),
     )
     if element["type"] != "customCode":
         msg = (

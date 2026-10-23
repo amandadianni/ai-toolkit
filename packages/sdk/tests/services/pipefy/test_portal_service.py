@@ -3090,6 +3090,29 @@ async def test_set_interface_sources_wrong_element_reads_but_sends_no_update(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_set_interface_sources_on_no_page_names_the_ids_to_check() -> None:
+    """The hint reads the same to SDK callers and MCP agents, so it names no method."""
+    service, _interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        await service.set_interface_sources(
+            _HTML_PAGE_ID,
+            "missing-element",
+            [_ALL_SUPPLIERS_SOURCE],
+            interface_uuid="html-uuid-1",
+        )
+
+    assert str(excinfo.value) == (
+        "Element 'missing-element' is on no page of interface 'html-uuid-1'. "
+        "Check interface_uuid and element_id: reading the interface lists its "
+        "pages and elements."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_set_interface_sources_unsuccessful_update_raises_value_error() -> None:
     service, _interfaces_executor = _set_sources_service(
         _html_interface_with_custom_code(), {"updateElement": {"success": False}}
