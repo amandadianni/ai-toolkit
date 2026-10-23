@@ -569,6 +569,13 @@ _HTML_GUIDELINES_GRAPHQL = {
     "cssRules": [
         {"code": "CSS_IMPORT_FORBIDDEN", "message": "No @import.", "subject": "@import"}
     ],
+    "dataPfyVocabulary": [
+        {
+            "attribute": "data-pfy-limit",
+            "purpose": "On a source container: how many records to show per page.",
+            "valueFormat": "An integer.",
+        }
+    ],
     "designSystem": None,
     "errorCodes": [
         {"code": "TAG_NOT_ALLOWED", "description": "A tag outside allowedTags."}
@@ -903,8 +910,10 @@ def test_get_interface_repo_fields_selects_the_field_uuid():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_interface_html_guidelines_sends_no_variables() -> None:
-    """get_interface_html_guidelines takes no argument: the rules are org-independent."""
+async def test_get_interface_html_guidelines_leaves_out_the_design_system_by_default() -> (
+    None
+):
+    """The rules are org-independent, so the only variable is whether to fetch the catalog."""
     service, _public, interfaces_executor = _make_interfaces_service(
         {"interfaceHtmlGuidelines": _HTML_GUIDELINES_GRAPHQL},
     )
@@ -913,7 +922,22 @@ async def test_get_interface_html_guidelines_sends_no_variables() -> None:
 
     query_used, variables = interfaces_executor.execute_query.call_args[0]
     assert query_used is GET_INTERFACE_HTML_GUIDELINES_QUERY
-    assert variables == {}
+    assert variables == {"includeDesignSystem": False}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_interface_html_guidelines_asks_for_the_design_system_on_request() -> (
+    None
+):
+    service, _public, interfaces_executor = _make_interfaces_service(
+        {"interfaceHtmlGuidelines": _HTML_GUIDELINES_GRAPHQL},
+    )
+
+    await service.get_interface_html_guidelines(include_design_system=True)
+
+    _query_used, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables == {"includeDesignSystem": True}
 
 
 _portal_queries_module = importlib.import_module("pipefy_sdk.queries.portal_queries")
@@ -2593,6 +2617,7 @@ def test_get_interface_html_guidelines_selects_every_guideline_field():
         "allowedTags",
         "authoringNotes",
         "cssRules",
+        "dataPfyVocabulary",
         "designSystem",
         "errorCodes",
         "filters",
@@ -2617,6 +2642,20 @@ def test_get_interface_html_guidelines_selects_every_guideline_field():
     assert _selection_names(error_codes.selection_set.selections) == {
         "code",
         "description",
+    }
+
+    design_system = _selected_field(guidelines.selection_set.selections, "designSystem")
+    (directive,) = design_system.directives
+    assert directive.name.value == "include"
+    assert directive.arguments[0].value.name.value == "includeDesignSystem"
+
+    vocabulary = _selected_field(
+        guidelines.selection_set.selections, "dataPfyVocabulary"
+    )
+    assert _selection_names(vocabulary.selection_set.selections) == {
+        "attribute",
+        "purpose",
+        "valueFormat",
     }
 
     filters = _selected_field(guidelines.selection_set.selections, "filters")

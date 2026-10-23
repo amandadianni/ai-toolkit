@@ -104,7 +104,7 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 | Tool | Read-only | Role |
 |------|-----------|------|
 | `list_portals` | Yes | Flat list: `uuid`, `name`, `visibility`, `subType`. Optional `search_term`. |
-| `get_interface_html_guidelines` | Yes | No argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. |
+| `get_interface_html_guidelines` | Yes | Optional `include_design_system` (default false) also returns the `designSystem` component catalog, which is most of the response; HTML/CSS authoring rules, the `data-pfy-*` vocabulary (`dataPfyVocabulary`: what each attribute does, for most which element it goes on, and the value it takes), and the data-source filter format for `customCode` content, the same for every organization. |
 | `list_interface_repos` | Yes | Numeric `organization_id`, optional `interface_uuid` and `repo_name`; the pipes and tables an HTML interface can take as data sources. |
 | `get_interface_repo_fields` | Yes | `repo_uuid`, optional `interface_uuid`; the repo's custom fields, each keyed by `uuid`. |
 | `set_interface_sources` | No | `interface_uuid`, `page_id`, `element_id`, `data_sources`; replaces a `customCode` element's sources. |

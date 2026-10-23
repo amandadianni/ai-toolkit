@@ -359,7 +359,9 @@ async def test_get_interface_html_guidelines_success(
         result = await session.call_tool("get_interface_html_guidelines", {})
 
     assert result.is_error is False
-    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with()
+    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with(
+        include_design_system=False
+    )
     payload = extract_payload(result)
     assert payload["success"] is True
     assert "result" in payload
@@ -404,9 +406,14 @@ async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
     )
 
     async with portal_session as session:
-        result = await session.call_tool("get_interface_html_guidelines", {})
+        result = await session.call_tool(
+            "get_interface_html_guidelines", {"include_design_system": True}
+        )
 
     assert result.is_error is False
+    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with(
+        include_design_system=True
+    )
     payload = extract_payload(result)
     assert payload["success"] is True
     assert payload["data"]["designSystem"] == _SAMPLE_DESIGN_SYSTEM
@@ -415,6 +422,27 @@ async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
         '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
     )
     assert json.loads(payload["result"])["designSystem"] == _SAMPLE_DESIGN_SYSTEM
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_leaves_out_the_design_system_by_default(
+    portal_session, mock_portal_client, extract_payload
+):
+    """The catalog is most of the response; without it the rules fit a client's view."""
+    guidelines = {k: v for k, v in _HTML_GUIDELINES.items() if k != "designSystem"}
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=guidelines
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    mock_portal_client.get_interface_html_guidelines.assert_awaited_once_with(
+        include_design_system=False
+    )
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert "designSystem" not in payload["data"]
 
 
 @pytest.mark.anyio
