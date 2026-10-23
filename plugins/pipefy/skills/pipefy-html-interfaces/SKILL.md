@@ -38,7 +38,7 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 
 | Operation | Read-only | Purpose |
 |-----------|-----------|---------|
-| `get_interface_html_guidelines` | Yes | The rules the HTML must follow, the `data-pfy-*` vocabulary for binding data, the filter format, and a design-system catalog. |
+| `get_interface_html_guidelines` | Yes | The rules the HTML must follow, the `data-pfy-*` vocabulary for binding data, and the filter format; with `include_design_system`, also a design-system catalog. |
 | `list_interface_repos` | Yes | Pipes and tables that can be a data source. |
 | `get_interface_repo_fields` | Yes | A pipe's or table's custom fields, to pick a source's `fieldKeys`. |
 | `list_interfaces` | Yes | The organization's HTML interfaces, with their `visibility`. |
@@ -49,7 +49,7 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 
 ## Rules that hold in every flow
 
-- **Read the guidelines first.** Call `get_interface_html_guidelines` before writing any HTML, and follow it. This skill does not repeat the rules: the guidelines are their single source, and they change with the platform. The response is large: every key except `designSystem` is a rule or a limit, and `designSystem` is a large component catalog, needed only for styling.
+- **Read the guidelines first.** Call `get_interface_html_guidelines` before writing any HTML, and follow it. This skill does not repeat the rules: the guidelines are their single source, and they change with the platform. By default it leaves out `designSystem`, a component catalog several times the size of the rules. Ask for it with `include_design_system` only when styling the page.
 - **Bind data exactly as `dataPfyVocabulary` says.** It says what each `data-pfy-*` attribute does, for most which element it goes on, and the value it takes. The validator only checks that an attribute is allowed, so it accepts a binding in the wrong place.
 - **Every write is live.** `create_html_interface`, `write_interface_html`, and `set_interface_sources` change what visitors see at once. A specific request from the user ("rename the heading to X") is approval for that change. Before anything beyond it, such as rewriting markup they did not mention or removing a source they still use, show the user the change and get their approval.
 - **Keep the live page reading only declared sources.** HTML that reads a source id the element does not declare renders blank, with no error. Add a source before writing the HTML that reads it. Remove or rename a source only after the live HTML no longer reads it.
@@ -57,10 +57,11 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 
 ## Steps — create a page
 
-1. **Read the rules.**
+1. **Read the rules**, and the design-system catalog if you will style the page:
 
    ```text
    get_interface_html_guidelines
+   get_interface_html_guidelines include_design_system=true
    ```
 
 2. **Check the name is free.** If an interface with that name exists, ask the user whether to change it (see the next section) or create another.

@@ -404,7 +404,9 @@ async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
     )
 
     async with portal_session as session:
-        result = await session.call_tool("get_interface_html_guidelines", {})
+        result = await session.call_tool(
+            "get_interface_html_guidelines", {"include_design_system": True}
+        )
 
     assert result.is_error is False
     payload = extract_payload(result)
@@ -415,6 +417,26 @@ async def test_get_interface_html_guidelines_round_trips_a_sample_design_system(
         '<button class="cn-button-variant-destructive" aria-label="Delete record">Delete</button>'
     )
     assert json.loads(payload["result"])["designSystem"] == _SAMPLE_DESIGN_SYSTEM
+
+
+@pytest.mark.anyio
+async def test_get_interface_html_guidelines_leaves_out_the_design_system_by_default(
+    portal_session, mock_portal_client, extract_payload
+):
+    """The catalog is most of the response; without it the rules fit a client's view."""
+    guidelines = {**_HTML_GUIDELINES, "designSystem": _SAMPLE_DESIGN_SYSTEM}
+    mock_portal_client.get_interface_html_guidelines = AsyncMock(
+        return_value=guidelines
+    )
+
+    async with portal_session as session:
+        result = await session.call_tool("get_interface_html_guidelines", {})
+
+    payload = extract_payload(result)
+    assert payload["success"] is True
+    assert "designSystem" not in payload["data"]
+    assert "designSystem" not in json.loads(payload["result"])
+    assert payload["data"]["allowedTags"] == ["div", "span", "p"]
 
 
 @pytest.mark.anyio

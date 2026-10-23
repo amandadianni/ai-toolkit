@@ -147,7 +147,10 @@ class PortalTools:
             annotations=ToolAnnotations(readOnlyHint=True),
             meta=REMOTE,
         )
-        async def get_interface_html_guidelines(ctx: Context) -> dict[str, Any]:
+        async def get_interface_html_guidelines(
+            ctx: Context,
+            include_design_system: bool = False,
+        ) -> dict[str, Any]:
             """Fetch the rules, data-binding vocabulary and design system for customCode HTML.
 
             Call this before writing an HTML interface's customCode element.
@@ -155,12 +158,17 @@ class PortalTools:
             tag/attribute/CSS construct with its violation code, the full
             error-code list, ``dataPfyVocabulary`` (what each ``data-pfy-*``
             attribute does, for most which element it goes on, and the value it
-            takes), the filter-tree format (a worked example plus the operators each field type supports),
-            content-size and nesting limits, and a ``designSystem`` snapshot: a
-            component catalog (tokens, icons and components with usage examples)
-            to style generated content consistently. The rules are the same for
-            every organization. The response includes both ``result``
-            (pretty-printed JSON string) and ``data`` (parsed dict) for convenience.
+            takes), the filter-tree format (a worked example plus the operators
+            each field type supports), and content-size and nesting limits. The
+            rules are the same for every organization. The response includes
+            both ``result`` (pretty-printed JSON string) and ``data`` (parsed
+            dict) for convenience.
+
+            Args:
+                include_design_system: Also return ``designSystem``, a component
+                    catalog (tokens, icons and components with usage examples) to
+                    style generated content consistently. It is most of the
+                    response, so request it only when styling a page.
             """
             client = get_pipefy_client(ctx)
             await ctx.debug("get_interface_html_guidelines")
@@ -170,6 +178,10 @@ class PortalTools:
                 return build_error_payload(
                     map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
                 )
+            if not include_design_system:
+                guidelines = {
+                    k: v for k, v in guidelines.items() if k != "designSystem"
+                }
             return build_success_payload(guidelines, include_parsed=True)
 
         @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
