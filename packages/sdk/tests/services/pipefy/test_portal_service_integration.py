@@ -276,6 +276,36 @@ async def test_live_create_portal_idempotent_returns_same_uuid(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_live_create_interface_defaults_color_and_round_trips(
+    live_portal_service: PortalService,
+) -> None:
+    """create_interface's default color must satisfy the API; the unit tests mock
+    the transport, so they cannot see this API-side requirement on their own."""
+    org_uuid = _require_portal_org_uuid()
+    name = f"mcp-html-create-smoke-{uuid.uuid4().hex[:8]}"
+
+    try:
+        interface = await live_portal_service.create_interface(org_uuid, name)
+    except PortalPermissionError:
+        pytest.skip(f"Token lacks manage_portals on org {org_uuid}")
+
+    interface_uuid = interface["uuid"]
+    try:
+        assert interface["contentModeHtml"] is True
+        pages = interface["pages"]
+        assert len(pages) == 1
+        elements = pages[0]["elements"]
+        assert len(elements) == 1
+        assert elements[0]["type"] == "customCode"
+
+        read_back = await live_portal_service.get_html_interface(interface_uuid)
+        assert read_back["uuid"] == interface_uuid
+    finally:
+        await live_portal_service.delete_portal(interface_uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_live_update_portal_page_layout_on_bootstrapped_page(
     live_portal_service: PortalService,
 ) -> None:

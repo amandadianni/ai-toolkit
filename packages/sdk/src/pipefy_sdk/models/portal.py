@@ -19,6 +19,21 @@ from pipefy_sdk.models.validators import NonBlankStr
 
 PortalVisibility = Literal["internal", "private", "public"]
 
+PortalColor = Literal[
+    "blue",
+    "cyan",
+    "gray",
+    "green",
+    "indigo",
+    "lime",
+    "pink",
+    "purple",
+    "orange",
+    "red",
+    "sky",
+    "yellow",
+]
+
 PortalElementType = Literal[
     "text",
     "table",
@@ -111,6 +126,7 @@ class CreateInterfaceInput(BaseModel):
         description="Organization UUID or numeric organization id."
     )
     name: NonBlankStr
+    color: PortalColor = "blue"
 
 
 class UpdatePortalInput(BaseModel):
@@ -401,6 +417,7 @@ __all__ = [
     "DeletePortalElementInput",
     "InterfaceDataSource",
     "InterfaceDataSources",
+    "PortalColor",
     "PortalElementType",
     "PortalPageLayoutRow",
     "PortalVisibility",

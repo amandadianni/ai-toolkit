@@ -3129,6 +3129,29 @@ async def test_set_interface_sources_wrong_element_reads_but_sends_no_update(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_set_interface_sources_on_no_page_names_the_ids_to_check() -> None:
+    """The hint reads the same to SDK callers and MCP agents, so it names no method."""
+    service, _interfaces_executor = _set_sources_service(
+        _html_interface_with_custom_code()
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        await service.set_interface_sources(
+            _HTML_PAGE_ID,
+            "missing-element",
+            [_ALL_SUPPLIERS_SOURCE],
+            interface_uuid="html-uuid-1",
+        )
+
+    assert str(excinfo.value) == (
+        "Element 'missing-element' is on no page of interface 'html-uuid-1'. "
+        "Check interface_uuid and element_id: reading the interface lists its "
+        "pages and elements."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_set_interface_sources_unsuccessful_update_raises_value_error() -> None:
     service, _interfaces_executor = _set_sources_service(
         _html_interface_with_custom_code(), {"updateElement": {"success": False}}
@@ -3195,6 +3218,7 @@ async def test_create_interface_calls_create_interface_with_validated_input() ->
         "input": {
             "org_uuid": EXAMPLE_ORG_UUID,
             "name": "Open purchase requests",
+            "color": "blue",
             "contentModeHtml": True,
             "pages": [
                 {
@@ -3211,6 +3235,38 @@ async def test_create_interface_calls_create_interface_with_validated_input() ->
             ],
         }
     }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_sends_the_given_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    await service.create_interface(
+        EXAMPLE_ORG_UUID, "Open purchase requests", color="purple"
+    )
+
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["color"] == "purple"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_rejects_an_unknown_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    with pytest.raises(ValidationError, match="color"):
+        await service.create_interface(
+            EXAMPLE_ORG_UUID,
+            "Open purchase requests",
+            color="chartreuse",  # type: ignore[arg-type]
+        )
+
+    interfaces_executor.execute_query.assert_not_awaited()
 
 
 @pytest.mark.unit

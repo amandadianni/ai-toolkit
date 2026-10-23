@@ -26,6 +26,7 @@ from pipefy_sdk.models.portal import (
     DeletePortalElementInput,
     InterfaceDataSource,
     InterfaceDataSources,
+    PortalColor,
     PortalElementType,
     PortalPageLayoutRow,
     UpdatePortalElementInput,
@@ -410,7 +411,10 @@ def _stored_custom_code_element(
         interface_uuid=interface_uuid,
         page_id=page_id,
         element_id=element_id,
-        not_found_hint="get_html_interface lists its pages and elements.",
+        not_found_hint=(
+            "Check interface_uuid and element_id: reading the interface lists its "
+            "pages and elements."
+        ),
     )
     if element["type"] != "customCode":
         msg = (
@@ -791,6 +795,7 @@ class PortalService:
         organization_uuid: str | int,
         name: str,
         *,
+        color: PortalColor = "blue",
         data_sources: list[InterfaceDataSource | dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Create an HTML interface (``contentModeHtml``) with one ``customCode`` page.
@@ -803,6 +808,8 @@ class PortalService:
         Args:
             organization_uuid: Organization UUID or numeric organization id.
             name: Interface name; also used as the one page's title.
+            color: A ``PortalColor`` value, e.g. ``blue`` or ``purple``.
+                Defaults to ``blue``.
             data_sources: The page's element's source bindings; ``[]``/``None``
                 for none. Each source has ``id`` (the handle the HTML reads it
                 by), ``name``, ``repoId``, ``fieldKeys`` (1 to 30) and optional
@@ -816,7 +823,7 @@ class PortalService:
                 nothing is sent.
         """
         validated = CreateInterfaceInput.model_validate(
-            {"organization_uuid": organization_uuid, "name": name}
+            {"organization_uuid": organization_uuid, "name": name, "color": color}
         )
         sources = InterfaceDataSources.model_validate(data_sources or [])
         resolved_org_uuid = await resolve_organization_uuid(
@@ -842,6 +849,7 @@ class PortalService:
                 "input": {
                     "org_uuid": resolved_org_uuid,
                     "name": validated.name,
+                    "color": validated.color,
                     "contentModeHtml": True,
                     "pages": [page],
                 }

@@ -52,7 +52,11 @@ from pipefy_sdk.models.attachment import (
 from pipefy_sdk.models.field_definition import FieldTypeId
 from pipefy_sdk.models.inbox_email import InboxEmailDraft
 from pipefy_sdk.models.knowledge_base import DataLookupCondition
-from pipefy_sdk.models.portal import InterfaceDataSource, PortalPageLayoutRow
+from pipefy_sdk.models.portal import (
+    InterfaceDataSource,
+    PortalColor,
+    PortalPageLayoutRow,
+)
 from pipefy_sdk.services.advanced_automations_service import AdvancedAutomationsService
 from pipefy_sdk.services.ai_agent_service import AiAgentService
 from pipefy_sdk.services.attachment_service import AttachmentService
@@ -2263,6 +2267,7 @@ class PipefyClient:
         organization_uuid: str | int,
         name: str,
         *,
+        color: PortalColor = "blue",
         data_sources: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Create an HTML interface (``contentModeHtml``) with one ``customCode`` page.
@@ -2270,13 +2275,15 @@ class PipefyClient:
         Args:
             organization_uuid: Organization UUID or numeric organization id.
             name: Interface name; also used as the one page's title.
+            color: A ``PortalColor`` value, e.g. ``blue`` or ``purple``.
+                Defaults to ``blue``.
             data_sources: The page's element's source bindings; ``[]``/``None``
                 for none. Each source has ``id`` (the handle the HTML reads it
                 by), ``name``, ``repoId``, ``fieldKeys`` (1 to 30) and optional
                 ``filters``. At most 10 sources; ``id``/``name`` unique among them.
         """
         return await self._portal_service.create_interface(
-            organization_uuid, name, data_sources=data_sources
+            organization_uuid, name, color=color, data_sources=data_sources
         )
 
     async def create_portal(self, organization_uuid: str | int) -> dict[str, Any]:

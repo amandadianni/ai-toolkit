@@ -688,7 +688,7 @@ async def test_create_html_interface_success(
 
     assert result.is_error is False
     mock_portal_client.create_interface.assert_awaited_once_with(
-        "org-abc-123", "Open purchase requests", data_sources=[]
+        "org-abc-123", "Open purchase requests", color="blue", data_sources=[]
     )
     mock_portal_client.write_html_document.assert_awaited_once_with(
         page_id="page-new-1", element_id="el-new-1", content="<div>Hello</div>"
@@ -696,6 +696,25 @@ async def test_create_html_interface_success(
     payload = extract_payload(result)
     assert payload["success"] is True
     assert payload["data"]["uuid"] == "html-uuid-new"
+
+
+@pytest.mark.anyio
+async def test_create_html_interface_invalid_color_returns_validation_envelope(
+    portal_session, mock_portal_client
+):
+    async with portal_session as session:
+        result = await session.call_tool(
+            "create_html_interface",
+            {
+                "organization_uuid": "org-abc-123",
+                "name": "Open purchase requests",
+                "html": "<div>Hello</div>",
+                "color": "chartreuse",
+            },
+        )
+
+    assert_invalid_arguments_envelope(result)
+    mock_portal_client.create_interface.assert_not_awaited()
 
 
 @pytest.mark.anyio
@@ -815,6 +834,7 @@ async def test_create_html_interface_forwards_data_sources(
     mock_portal_client.create_interface.assert_awaited_once_with(
         "org-abc-123",
         "Open purchase requests",
+        color="blue",
         data_sources=[InterfaceDataSource.model_validate(data_sources[0])],
     )
 
