@@ -148,15 +148,14 @@ class PortalTools:
             meta=REMOTE,
         )
         async def get_interface_html_guidelines(ctx: Context) -> dict[str, Any]:
-            """Fetch the HTML/CSS rules and data-source filter format for customCode content.
+            """Fetch the rules, data-binding vocabulary and design system for customCode HTML.
 
             Call this before writing an HTML interface's customCode element.
             Returns every allowed tag and attribute, every forbidden
             tag/attribute/CSS construct with its violation code, the full
-            error-code list, ``dataPfyVocabulary`` (each ``data-pfy-*``
-            attribute's purpose and value format: how the HTML binds a data
-            source, repeats a row per record, and shows a field), the filter-tree
-            format (a worked example plus the operators each field type supports),
+            error-code list, ``dataPfyVocabulary`` (what each ``data-pfy-*``
+            attribute does, for most which element it goes on, and the value it
+            takes), the filter-tree format (a worked example plus the operators each field type supports),
             content-size and nesting limits, and a ``designSystem`` snapshot: a
             component catalog (tokens, icons and components with usage examples)
             to style generated content consistently. The rules are the same for
