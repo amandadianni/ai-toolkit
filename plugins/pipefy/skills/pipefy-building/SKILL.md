@@ -30,6 +30,7 @@ If the user already has a building skill or a detailed build prompt/spec, use th
 | Conversational AI agents and behaviors | `pipefy-ai-agents` |
 | External integration / integrate with Slack, Gmail, Sheets, or another app | `pipefy-ipaas` |
 | Portals, pages, elements, sub-portals | `pipefy-portal-setup` |
+| HTML interfaces: a page written as HTML, with data from pipes and tables | `pipefy-html-interfaces` |
 | Members, email templates, inbox email, webhooks | `pipefy-members-email-webhooks` |
 | Database tables and records | `pipefy-database-tables` |
 | Pipe/card relations | `pipefy-relations` |
