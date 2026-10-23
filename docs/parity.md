@@ -152,7 +152,7 @@ MCP destructive tools use a two-step `confirmation_token` (see [Destructive oper
 | `get_pipe_report_export` | (poll via `pipefy report-pipe export --format json`) | shipped | Reports + exports. |
 | `get_pipe_report_filterable_fields` | `pipefy report-pipe filterable-fields` | shipped | Reports domain. |
 | `get_interface_repo_fields` | `pipefy portal html-interface repo-fields` | shipped | Interfaces `interfacesRepoStructure`; read-only; a repo's custom fields, each keyed by `uuid` for a data source's `fieldKeys`. Remote-safe. |
-| `get_interface_html_guidelines` | `pipefy portal html-interface guidelines` | shipped | Interfaces schema; read-only, no argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. Remote-safe. |
+| `get_interface_html_guidelines` | `pipefy portal html-interface guidelines` | shipped | Interfaces schema; read-only; optional `include_design_system`; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. Remote-safe. |
 | `get_pipe_reports` | `pipefy report-pipe list` | shipped | Reports domain. |
 | `get_portal` | `pipefy portal get` | shipped | Interfaces schema; read-only; includes `published`. |
 | `get_records` | `pipefy card records` | shipped | Lists, counts and filters the cards of a pipe (``--pipe``, ``--where`` JSON filter, ``--search-term``, ``--phase``, ``--order-by`` JSON, ``--include-fields``, ``--first`` 1 to 50 / ``--after``). For a count, pass ``--first 1`` and read ``totalCount``. |

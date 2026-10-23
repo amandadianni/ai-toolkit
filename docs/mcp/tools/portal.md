@@ -108,7 +108,7 @@ Sixteen values accepted by `create_portal_element` / `update_portal_element` (SD
 | `get_interface_html` | Yes | HTML interface with each `customCode` element's live document. Raises on a grid-layout interface (use `get_portal`). |
 | `create_html_interface` | No | Creates an interface with one `customCode` page and writes its HTML in one call; optional `data_sources`, `color` (defaults to `blue`). |
 | `write_interface_html` | No | Writes and publishes a `customCode` element's whole HTML document; raises on invalid HTML (every violation listed), stores nothing. |
-| `get_interface_html_guidelines` | Yes | No argument; HTML/CSS authoring rules and data-source filter format for `customCode` content, the same for every organization. |
+| `get_interface_html_guidelines` | Yes | Optional `include_design_system` (default false) also returns the `designSystem` component catalog, which is most of the response; HTML/CSS authoring rules, the `data-pfy-*` vocabulary (`dataPfyVocabulary`: what each attribute does, for most which element it goes on, and the value it takes), and the data-source filter format for `customCode` content, the same for every organization. |
 | `list_interface_repos` | Yes | Numeric `organization_id`, optional `interface_uuid` and `repo_name`; the pipes and tables an HTML interface can take as data sources. |
 | `get_interface_repo_fields` | Yes | `repo_uuid`, optional `interface_uuid`; the repo's custom fields, each keyed by `uuid`. |
 | `set_interface_sources` | No | `interface_uuid`, `page_id`, `element_id`, `data_sources`; replaces a `customCode` element's sources. |

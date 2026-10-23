@@ -18,6 +18,7 @@
     "./skills/pipefy-automations",
     "./skills/pipefy-building",
     "./skills/pipefy-database-tables",
+    "./skills/pipefy-html-interfaces",
     "./skills/pipefy-introspection",
     "./skills/pipefy-ipaas",
     "./skills/pipefy-members-email-webhooks",

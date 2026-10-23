@@ -411,7 +411,10 @@ def _stored_custom_code_element(
         interface_uuid=interface_uuid,
         page_id=page_id,
         element_id=element_id,
-        not_found_hint="get_html_interface lists its pages and elements.",
+        not_found_hint=(
+            "Check interface_uuid and element_id: reading the interface lists its "
+            "pages and elements."
+        ),
     )
     if element["type"] != "customCode":
         msg = (
@@ -773,14 +776,17 @@ class PortalService:
             {"id": element_id, "dataSources": sources.model_dump(by_alias=True)}
         )
 
-    async def get_interface_html_guidelines(self) -> dict[str, Any]:
+    async def get_interface_html_guidelines(
+        self, *, include_design_system: bool = False
+    ) -> dict[str, Any]:
         """Fetch the HTML/CSS rules and data-source filter format for ``customCode`` content.
 
-        The rules are the same for every organization, so the query takes no
-        argument.
+        The rules are the same for every organization, so the only variable is
+        whether to select ``designSystem``, which is most of the response.
         """
         data = await self.execute_interfaces_query(
-            GET_INTERFACE_HTML_GUIDELINES_QUERY, {}
+            GET_INTERFACE_HTML_GUIDELINES_QUERY,
+            {"includeDesignSystem": include_design_system},
         )
         return data["interfaceHtmlGuidelines"]
 
