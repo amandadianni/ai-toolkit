@@ -3156,6 +3156,7 @@ async def test_create_interface_calls_create_interface_with_validated_input() ->
         "input": {
             "org_uuid": EXAMPLE_ORG_UUID,
             "name": "Open purchase requests",
+            "color": "blue",
             "contentModeHtml": True,
             "pages": [
                 {
@@ -3172,6 +3173,38 @@ async def test_create_interface_calls_create_interface_with_validated_input() ->
             ],
         }
     }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_sends_the_given_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    await service.create_interface(
+        EXAMPLE_ORG_UUID, "Open purchase requests", color="purple"
+    )
+
+    _, variables = interfaces_executor.execute_query.call_args[0]
+    assert variables["input"]["color"] == "purple"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_interface_rejects_an_unknown_color() -> None:
+    service, _public, interfaces_executor = _make_interfaces_service(
+        _CREATE_INTERFACE_RESPONSE,
+    )
+
+    with pytest.raises(ValidationError, match="color"):
+        await service.create_interface(
+            EXAMPLE_ORG_UUID,
+            "Open purchase requests",
+            color="chartreuse",  # type: ignore[arg-type]
+        )
+
+    interfaces_executor.execute_query.assert_not_awaited()
 
 
 @pytest.mark.unit

@@ -11,6 +11,7 @@ from pipefy_sdk.models.portal import (
     CreatePortalElementInput,
     DeletePortalElementInput,
     InterfaceDataSources,
+    PortalColor,
     PortalElementType,
     PortalVisibility,
     UpdatePortalElementInput,
@@ -481,6 +482,7 @@ class PortalTools:
             organization_uuid: PipefyId,
             name: str,
             html: str,
+            color: PortalColor = "blue",
             data_sources: list[dict[str, Any]] | None = None,
         ) -> dict[str, Any]:
             """Create an HTML interface and write its first page in one call.
@@ -513,6 +515,8 @@ class PortalTools:
                 organization_uuid: Organization UUID, or numeric organization id.
                 name: Interface name; also used as the one page's title.
                 html: The page's whole HTML document.
+                color: A ``PortalColor`` value, e.g. ``blue`` or ``purple``.
+                    Defaults to ``blue``.
                 data_sources: The page's element's source bindings.
             """
             client = get_pipefy_client(ctx)
@@ -542,7 +546,7 @@ class PortalTools:
             )
             try:
                 interface = await client.create_interface(
-                    organization_uuid, name, data_sources=sources.root
+                    organization_uuid, name, color=color, data_sources=sources.root
                 )
             except Exception as exc:  # noqa: BLE001
                 return build_error_payload(
