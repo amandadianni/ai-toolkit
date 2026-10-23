@@ -38,7 +38,7 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 
 | Operation | Read-only | Purpose |
 |-----------|-----------|---------|
-| `get_interface_html_guidelines` | Yes | The rules the HTML must follow, the allowed `data-pfy-*` attributes, the filter format, and a design-system catalog. |
+| `get_interface_html_guidelines` | Yes | The rules the HTML must follow, the `data-pfy-*` vocabulary for binding data, the filter format, and a design-system catalog. |
 | `list_interface_repos` | Yes | Pipes and tables that can be a data source. |
 | `get_interface_repo_fields` | Yes | A pipe's or table's custom fields, to pick a source's `fieldKeys`. |
 | `list_interfaces` | Yes | The organization's HTML interfaces, with their `visibility`. |
@@ -50,6 +50,7 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 ## Rules that hold in every flow
 
 - **Read the guidelines first.** Call `get_interface_html_guidelines` before writing any HTML, and follow it. This skill does not repeat the rules: the guidelines are their single source, and they change with the platform. The response is large: every key except `designSystem` is a rule or a limit, and `designSystem` is a large component catalog, needed only for styling.
+- **Bind data exactly as `dataPfyVocabulary` says.** It gives each `data-pfy-*` attribute's purpose (which element it goes on) and value format. The validator only checks that an attribute is allowed, so it accepts a binding in the wrong place.
 - **Every write is live.** `create_html_interface`, `write_interface_html`, and `set_interface_sources` change what visitors see at once. A specific request from the user ("rename the heading to X") is approval for that change. Before anything beyond it, such as rewriting markup they did not mention or removing a source they still use, show the user the change and get their approval.
 - **Keep the live page reading only declared sources.** HTML that reads a source id the element does not declare renders blank, with no error. Add a source before writing the HTML that reads it. Remove or rename a source only after the live HTML no longer reads it.
 - **Fix every violation before writing again.** A rejected write stores nothing and lists every violation. Fix all of them in one pass, then write again. If the HTML came from the user, show them the violations and a version that follows the rules, and publish only once they agree.
@@ -77,7 +78,7 @@ If the user asks for a "page" and it is unclear whether they mean a standalone H
 
    A source is `{"id", "name", "repoId", "fieldKeys", "filters"}`. `repoId` is the repo's `uuid`. `fieldKeys` holds 1 to 30 keys: a custom field's `uuid` (not its `id`), or a built-in key such as `title` (the guidelines list built-in keys under `filters.fixedColumnNames`). `filters` is optional and follows the guidelines' filter format. `id` and `name` are unique within the element; the HTML reads the source by `id`. An element holds at most 10 sources.
 
-4. **Write the HTML** against the guidelines, reading each source by its `id`.
+4. **Write the HTML** against the guidelines, binding each source by its `id` with the `dataPfyVocabulary` attributes.
 
 5. **Create the interface** with its sources and HTML in one call:
 
