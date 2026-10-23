@@ -199,7 +199,7 @@ GET_INTERFACE_REPO_FIELDS_QUERY = gql(
 
 GET_INTERFACE_HTML_GUIDELINES_QUERY = gql(
     """
-    query GetInterfaceHtmlGuidelines {
+    query GetInterfaceHtmlGuidelines($includeDesignSystem: Boolean!) {
         interfaceHtmlGuidelines {
             allowedAttributePrefixes
             allowedDataAttributes
@@ -217,7 +217,7 @@ GET_INTERFACE_HTML_GUIDELINES_QUERY = gql(
                 purpose
                 valueFormat
             }
-            designSystem
+            designSystem @include(if: $includeDesignSystem)
             errorCodes {
                 code
                 description

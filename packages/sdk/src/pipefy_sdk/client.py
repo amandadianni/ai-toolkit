@@ -2235,19 +2235,28 @@ class PipefyClient:
             page_id, element_id, data_sources, interface_uuid=interface_uuid
         )
 
-    async def get_interface_html_guidelines(self) -> dict[str, Any]:
+    async def get_interface_html_guidelines(
+        self, *, include_design_system: bool = False
+    ) -> dict[str, Any]:
         """Fetch the rules, data-binding vocabulary and design system for ``customCode`` HTML.
 
         Returns the allowed tags and attributes, every forbidden tag/attribute/CSS
         construct with its violation code, the full error-code list,
         ``dataPfyVocabulary`` (what each ``data-pfy-*`` attribute does, for most
-        which element it goes on, and the value it takes), the filter-tree format (a worked example plus the operators each
-        field type supports), content-size and nesting limits, and a ``designSystem``
-        snapshot: a component catalog (tokens, icons and components with usage
-        examples) to style generated content consistently. The rules are the
-        same for every organization.
+        which element it goes on, and the value it takes), the filter-tree
+        format (a worked example plus the operators each field type supports),
+        and content-size and nesting limits. The rules are the same for every
+        organization.
+
+        Args:
+            include_design_system: Also select ``designSystem``, a component
+                catalog (tokens, icons and components with usage examples) to
+                style generated content consistently. It is most of the
+                response, so the query skips it unless asked.
         """
-        return await self._portal_service.get_interface_html_guidelines()
+        return await self._portal_service.get_interface_html_guidelines(
+            include_design_system=include_design_system
+        )
 
     async def create_interface(
         self,

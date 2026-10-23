@@ -173,15 +173,13 @@ class PortalTools:
             client = get_pipefy_client(ctx)
             await ctx.debug("get_interface_html_guidelines")
             try:
-                guidelines = await client.get_interface_html_guidelines()
+                guidelines = await client.get_interface_html_guidelines(
+                    include_design_system=include_design_system
+                )
             except Exception as exc:  # noqa: BLE001
                 return build_error_payload(
                     map_portal_error_to_message(exc, empty_fallback=_PORTAL_READ_FAILED)
                 )
-            if not include_design_system:
-                guidelines = {
-                    k: v for k, v in guidelines.items() if k != "designSystem"
-                }
             return build_success_payload(guidelines, include_parsed=True)
 
         @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
