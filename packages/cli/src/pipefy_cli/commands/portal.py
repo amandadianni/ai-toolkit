@@ -1161,6 +1161,12 @@ def html_interface_list(
 @html_interface_app.command("guidelines")
 def html_interface_guidelines(
     ctx: typer.Context,
+    include_design_system: bool = typer.Option(
+        False,
+        "--include-design-system",
+        help="Also return the designSystem component catalog. It is most of "
+        "the response; request it only when styling a page.",
+    ),
     json_out: bool = typer.Option(
         False,
         "--json",
@@ -1170,12 +1176,15 @@ def html_interface_guidelines(
 ) -> None:
     """Fetch the HTML/CSS authoring rules and data-source filter format.
 
-    The rules are the same for every organization; this takes no argument.
+    The rules are the same for every organization; this takes no required
+    argument.
     """
 
     async def factory(client: PipefyClient):
         try:
-            return await client.get_interface_html_guidelines()
+            return await client.get_interface_html_guidelines(
+                include_design_system=include_design_system
+            )
         except Exception as exc:
             _reraise_mapped_html_interface_error(exc)
 

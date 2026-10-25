@@ -2497,7 +2497,41 @@ def test_html_interface_guidelines_json(runner, clean_pipefy_env, saved_cwd, oau
         )
     assert result.exit_code == 0, result.stdout + (result.stderr or "")
     assert json.loads(result.stdout) == {"allowedTags": ["div", "p"]}
-    mock_client.get_interface_html_guidelines.assert_awaited_once_with()
+    mock_client.get_interface_html_guidelines.assert_awaited_once_with(
+        include_design_system=False
+    )
+
+
+def test_html_interface_guidelines_include_design_system(
+    runner, clean_pipefy_env, saved_cwd, oauth_env
+):
+    oauth_env("html-interface-guidelines-design-system")
+    mock_client = MagicMock()
+    mock_client.get_interface_html_guidelines = AsyncMock(
+        return_value={"allowedTags": ["div"], "designSystem": {"tokens": {}}}
+    )
+    with patch(
+        "pipefy_cli.commands._common.get_authenticated_client",
+        return_value=mock_client,
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "portal",
+                "html-interface",
+                "guidelines",
+                "--include-design-system",
+                "--json",
+            ],
+        )
+    assert result.exit_code == 0, result.stdout + (result.stderr or "")
+    assert json.loads(result.stdout) == {
+        "allowedTags": ["div"],
+        "designSystem": {"tokens": {}},
+    }
+    mock_client.get_interface_html_guidelines.assert_awaited_once_with(
+        include_design_system=True
+    )
 
 
 def test_html_interface_guidelines_permission_denied_shows_guidance_exit_1(

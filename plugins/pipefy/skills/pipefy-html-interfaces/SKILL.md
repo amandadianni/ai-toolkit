@@ -8,12 +8,12 @@ description: >
   main portal, its grid-layout pages, and sub-portals, use `pipefy-portal-setup`.
 tags: [pipefy, interfaces, html, pages, data-sources]
 metadata:
-  surfaces: "mcp"
+  surfaces: "mcp cli"
 ---
 
 # HTML interfaces
 
-MCP clients: read [references/mcp.md](references/mcp.md).
+MCP clients: read [references/mcp.md](references/mcp.md). CLI users: read [references/cli.md](references/cli.md).
 
 An HTML interface is a page whose single element is a `customCode` element holding one HTML document. The element can declare data sources (pipes or tables) that the HTML reads by source id. Writing the HTML publishes it: there is no draft.
 

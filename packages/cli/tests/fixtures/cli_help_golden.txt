@@ -3117,11 +3117,15 @@ Usage: pipefy portal html-interface guidelines [OPTIONS]
 
  Fetch the HTML/CSS authoring rules and data-source filter format.
 
- The rules are the same for every organization; this takes no argument.
+ The rules are the same for every organization; this takes no required
+ argument.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --json  -j        Print machine-readable JSON to stdout.                     │
-│ --help            Show this message and exit.                                │
+│ --include-design-system            Also return the designSystem component    │
+│                                    catalog. It is most of the response;      │
+│                                    request it only when styling a page.      │
+│ --json                   -j        Print machine-readable JSON to stdout.    │
+│ --help                             Show this message and exit.               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ### HELP portal/html-interface/list
