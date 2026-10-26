@@ -2534,9 +2534,14 @@ def test_html_interface_guidelines_include_design_system(
     )
 
 
-def test_html_interface_guidelines_permission_denied_shows_guidance_exit_1(
+def test_html_interface_guidelines_permission_denied_shows_guidance_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
+    """A raw PERMISSION_DENIED is re-raised as PortalPermissionError (exit 2),
+
+    the same exit code as a denial the SDK already wraps on a write, so a
+    caller scripting against this sub-app sees one exit code for a denial.
+    """
     oauth_env("html-interface-guidelines-permission-denied")
     mock_client = MagicMock()
     mock_client.get_interface_html_guidelines = AsyncMock(
@@ -2554,7 +2559,7 @@ def test_html_interface_guidelines_permission_denied_shows_guidance_exit_1(
         return_value=mock_client,
     ):
         result = runner.invoke(app, ["portal", "html-interface", "guidelines"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied. Request organization permissions such as "
         "`create_portal` or `manage_portals` from your admin."
@@ -2590,13 +2595,15 @@ def test_html_interface_list_forwards_search_term(
     )
 
 
-def test_html_interface_list_permission_denied_shows_guidance_exit_1(
+def test_html_interface_list_permission_denied_shows_guidance_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
-    """A raw PERMISSION_DENIED GraphQL error becomes the standard guidance text.
+    """A raw PERMISSION_DENIED GraphQL error becomes the standard guidance text,
 
-    list_html_interfaces never wraps a failure in PortalPermissionError (it
-    calls execute_interfaces_query directly), so this is the real failure shape.
+    re-raised as PortalPermissionError (exit 2). list_html_interfaces never
+    wraps a failure in PortalPermissionError itself (it calls
+    execute_interfaces_query directly), so this is the real raw failure shape
+    reaching the CLI mapping, not the SDK's own wrapping.
     """
     oauth_env("html-interface-list-permission-denied")
     mock_client = MagicMock()
@@ -2618,7 +2625,7 @@ def test_html_interface_list_permission_denied_shows_guidance_exit_1(
             app,
             ["portal", "html-interface", "list", "--organization-uuid", "org-123"],
         )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied. Request organization permissions such as "
         "`create_portal` or `manage_portals` from your admin."
@@ -2642,13 +2649,84 @@ def test_html_interface_get_unknown_uuid_shows_clean_message_exit_1(
     assert result.stderr.strip() == "No HTML interface has uuid 'html-missing'."
 
 
-def test_html_interface_get_permission_denied_shows_guidance_exit_1(
+def test_html_interface_get_grid_interface_names_cli_command_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
-    """A raw PERMISSION_DENIED GraphQL error becomes the standard guidance text.
+    """get_html_interface's grid-interface error names pipefy portal get,
 
-    get_html_interface never wraps a failure in PortalPermissionError (it calls
-    execute_interfaces_query directly), so this is the real failure shape.
+    not get_portal, the SDK/MCP method name it raises.
+    """
+    oauth_env("html-interface-get-grid-interface")
+    mock_client = MagicMock()
+    mock_client.get_html_interface = AsyncMock(
+        side_effect=ValueError(
+            "Interface 'grid-1' is not an HTML interface; "
+            "use get_portal to read its elements."
+        )
+    )
+    with patch(
+        "pipefy_cli.commands._common.get_authenticated_client",
+        return_value=mock_client,
+    ):
+        result = runner.invoke(app, ["portal", "html-interface", "get", "grid-1"])
+    assert result.exit_code == 2
+    assert result.stderr.strip() == (
+        "Interface 'grid-1' is not an HTML interface; "
+        "use `pipefy portal get` to read its elements."
+    )
+
+
+def test_html_interface_set_sources_grid_interface_names_cli_command_exit_2(
+    runner, clean_pipefy_env, saved_cwd, oauth_env
+):
+    """set_interface_sources reads the interface first; its grid-interface
+
+    error gets the same CLI-command rewrite as the standalone get command.
+    """
+    oauth_env("html-interface-set-sources-grid-interface")
+    mock_client = MagicMock()
+    mock_client.set_interface_sources = AsyncMock(
+        side_effect=ValueError(
+            "Interface 'grid-1' is not an HTML interface; "
+            "use get_portal to read its elements."
+        )
+    )
+    with patch(
+        "pipefy_cli.commands._common.get_authenticated_client",
+        return_value=mock_client,
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "portal",
+                "html-interface",
+                "set-sources",
+                "--interface-uuid",
+                "grid-1",
+                "--page-id",
+                "page-1",
+                "--element-id",
+                "el-1",
+                "--data-sources",
+                "[]",
+            ],
+        )
+    assert result.exit_code == 2
+    assert result.stderr.strip() == (
+        "Interface 'grid-1' is not an HTML interface; "
+        "use `pipefy portal get` to read its elements."
+    )
+
+
+def test_html_interface_get_permission_denied_shows_guidance_exit_2(
+    runner, clean_pipefy_env, saved_cwd, oauth_env
+):
+    """A raw PERMISSION_DENIED GraphQL error becomes the standard guidance text,
+
+    re-raised as PortalPermissionError (exit 2). get_html_interface never
+    wraps a failure in PortalPermissionError itself (it calls
+    execute_interfaces_query directly), so this is the real raw failure shape
+    reaching the CLI mapping, not the SDK's own wrapping.
     """
     oauth_env("html-interface-get-permission-denied")
     mock_client = MagicMock()
@@ -2667,7 +2745,7 @@ def test_html_interface_get_permission_denied_shows_guidance_exit_1(
         return_value=mock_client,
     ):
         result = runner.invoke(app, ["portal", "html-interface", "get", "html-uuid-1"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied. Request organization permissions such as "
         "`create_portal` or `manage_portals` from your admin."
@@ -2805,51 +2883,6 @@ def test_html_interface_write_html_validation_error_single_violation_exit_1(
     assert result.exit_code == 1
     assert "it has 1 violation." in result.stderr
     assert "- SCRIPT_FORBIDDEN at script: <script> is not allowed." in result.stderr
-
-
-def test_html_interface_write_graphql_permission_denied_shows_guidance_exit_1(
-    runner, clean_pipefy_env, saved_cwd, oauth_env
-):
-    """A raw, coded PERMISSION_DENIED (not wrapped in PortalPermissionError)
-
-    still gets the standard guidance text, distinct from the
-    PortalPermissionError passthrough covered elsewhere (which stays exit 2).
-    """
-    oauth_env("html-interface-write-permission-denied-coded")
-    mock_client = MagicMock()
-    mock_client.write_html_document = AsyncMock(
-        side_effect=PipefyGraphQLError(
-            [
-                {
-                    "message": "Permission denied",
-                    "extensions": {"code": "PERMISSION_DENIED"},
-                }
-            ]
-        )
-    )
-    with patch(
-        "pipefy_cli.commands._common.get_authenticated_client",
-        return_value=mock_client,
-    ):
-        result = runner.invoke(
-            app,
-            [
-                "portal",
-                "html-interface",
-                "write",
-                "--page-id",
-                "page-1",
-                "--element-id",
-                "el-1",
-                "--content",
-                "<div>Hello</div>",
-            ],
-        )
-    assert result.exit_code == 1
-    assert result.stderr.strip() == (
-        "Permission denied. Request organization permissions such as "
-        "`create_portal` or `manage_portals` from your admin."
-    )
 
 
 def test_html_interface_write_uses_content_file(
@@ -3368,12 +3401,13 @@ def test_html_interface_create_unknown_repo_id_shows_clean_message_exit_1(
     assert result.stderr.strip() == "One of the data sources' repoId was not found."
 
 
-def test_html_interface_create_source_access_denied_shows_clean_message_exit_1(
+def test_html_interface_create_source_access_denied_shows_clean_message_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
     """A bare, code-less 'Permission denied' is the data-source-access refusal,
 
-    distinct from the general PERMISSION_DENIED-coded portal guidance.
+    distinct from the general PERMISSION_DENIED-coded portal guidance, but
+    both are a permission denial and so share the same exit code (2).
     """
     oauth_env("html-interface-create-source-denied")
     mock_client = MagicMock()
@@ -3409,7 +3443,7 @@ def test_html_interface_create_source_access_denied_shows_clean_message_exit_1(
                 ),
             ],
         )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied for a data source: you can bind only the pipes and "
         "tables 'portal html-interface repos' returns for this interface."
@@ -3499,12 +3533,13 @@ def test_html_interface_repos_unknown_org_shows_clean_message_exit_1(
     assert result.stderr.strip() == "No organization has id '999999'."
 
 
-def test_html_interface_repos_source_access_denied_shows_clean_message_exit_1(
+def test_html_interface_repos_source_access_denied_shows_clean_message_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
     """A bare, code-less 'Permission denied' is the data-source-access refusal,
 
-    distinct from the general PERMISSION_DENIED-coded portal guidance.
+    distinct from the general PERMISSION_DENIED-coded portal guidance, but
+    both are a permission denial and so share the same exit code (2).
     """
     oauth_env("html-interface-repos-source-denied")
     mock_client = MagicMock()
@@ -3527,7 +3562,7 @@ def test_html_interface_repos_source_access_denied_shows_clean_message_exit_1(
                 "html-uuid-1",
             ],
         )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied for a data source: you can bind only the pipes and "
         "tables 'portal html-interface repos' returns for this interface."
@@ -3652,12 +3687,13 @@ def test_html_interface_repo_fields_unknown_interface_shows_clean_message_exit_1
     )
 
 
-def test_html_interface_repo_fields_source_access_denied_shows_clean_message_exit_1(
+def test_html_interface_repo_fields_source_access_denied_shows_clean_message_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
     """A bare, code-less 'Permission denied' is the data-source-access refusal,
 
-    distinct from the general PERMISSION_DENIED-coded portal guidance.
+    distinct from the general PERMISSION_DENIED-coded portal guidance, but
+    both are a permission denial and so share the same exit code (2).
     """
     oauth_env("html-interface-repo-fields-source-denied")
     mock_client = MagicMock()
@@ -3678,7 +3714,7 @@ def test_html_interface_repo_fields_source_access_denied_shows_clean_message_exi
                 EXAMPLE_PIPE_REPO_ID,
             ],
         )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied for a data source: you can bind only the pipes and "
         "tables 'portal html-interface repos' returns for this interface."
@@ -3799,12 +3835,13 @@ def test_html_interface_set_sources_unknown_interface_shows_clean_message_exit_1
     assert result.stderr.strip() == "No HTML interface has uuid 'html-missing'."
 
 
-def test_html_interface_set_sources_source_access_denied_shows_clean_message_exit_1(
+def test_html_interface_set_sources_source_access_denied_shows_clean_message_exit_2(
     runner, clean_pipefy_env, saved_cwd, oauth_env
 ):
     """A bare, code-less 'Permission denied' is the data-source-access refusal,
 
-    distinct from the general PERMISSION_DENIED-coded portal guidance. The SDK
+    distinct from the general PERMISSION_DENIED-coded portal guidance, but
+    both are a permission denial and so share the same exit code (2). The SDK
     documents this exact shape for set_interface_sources: the caller cannot
     manage a repo that a new or widened source reads.
     """
@@ -3833,7 +3870,7 @@ def test_html_interface_set_sources_source_access_denied_shows_clean_message_exi
                 "[]",
             ],
         )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.stderr.strip() == (
         "Permission denied for a data source: you can bind only the pipes and "
         "tables 'portal html-interface repos' returns for this interface."

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 
 import pytest
@@ -171,11 +172,24 @@ def test_cli_live_html_interface_create_round_trips():
         create_result.stderr or ""
     ):
         pytest.skip(f"Token lacks manage_portals on org {org_uuid}")
-    assert create_result.exit_code == 0, create_result.stdout + (
-        create_result.stderr or ""
-    )
-    interface_uuid = json.loads(create_result.stdout)["uuid"]
+    # Even when create's second call (write_html_document) fails, the interface
+    # itself was already created with a blank page; the CLI's own guidance names
+    # its uuid in stderr. Capture it either way so a write-phase failure still
+    # gets cleaned up, instead of only running the finally on a full success.
+    interface_uuid: str | None = None
+    if create_result.exit_code == 0:
+        interface_uuid = json.loads(create_result.stdout)["uuid"]
+    else:
+        match = re.search(
+            r"The interface \(([^)]+)\) was already created",
+            create_result.stderr or "",
+        )
+        if match is not None:
+            interface_uuid = match.group(1)
     try:
+        assert create_result.exit_code == 0, create_result.stdout + (
+            create_result.stderr or ""
+        )
         get_result = runner.invoke(
             app, ["portal", "html-interface", "get", interface_uuid, "--json"]
         )
@@ -185,4 +199,5 @@ def test_cli_live_html_interface_create_round_trips():
         content = interface["pages"][0]["elements"][0]["htmlDocument"]["content"]
         assert content == "<div>cli smoke</div>"
     finally:
-        runner.invoke(app, ["portal", "delete", interface_uuid, "--yes"])
+        if interface_uuid is not None:
+            runner.invoke(app, ["portal", "delete", interface_uuid, "--yes"])

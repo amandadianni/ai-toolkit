@@ -1021,6 +1021,26 @@ _HTML_INTERFACE_SOURCE_ACCESS_DENIED = (
     "tables 'portal html-interface repos' returns for this interface."
 )
 _NOT_FOUND_ERROR_CODES = frozenset({"RECORD_NOT_FOUND", "RESOURCE_NOT_FOUND"})
+_GRID_INTERFACE_ERROR_MARKER = "use get_portal to read its elements"
+
+
+def _rewrite_grid_interface_error(exc: ValueError) -> ValueError:
+    """Rewrite get_html_interface's grid-interface error to name the CLI command.
+
+    ``get_html_interface`` raises this ``ValueError`` (not a ``PipefyGraphQLError``,
+    so ``_html_interface_error_text`` never sees it) pointing a caller at
+    ``get_portal``, its own SDK/MCP method name. A CLI user needs
+    ``pipefy portal get`` instead. Any other ``ValueError`` (e.g. a plain
+    not-found) passes through unchanged, keeping its own exit code (2).
+    """
+    text = str(exc)
+    if _GRID_INTERFACE_ERROR_MARKER not in text:
+        return exc
+    return ValueError(
+        text.replace(
+            _GRID_INTERFACE_ERROR_MARKER, "use `pipefy portal get` to read its elements"
+        )
+    )
 
 
 def _graphql_error_codes(exc: BaseException) -> list[str]:
@@ -1086,7 +1106,7 @@ def _html_interface_error_text(
     if source_access_denied and not codes and lowered == "permission denied":
         return _HTML_INTERFACE_SOURCE_ACCESS_DENIED
 
-    if "PERMISSION_DENIED" in codes or lowered == "permission denied":
+    if "PERMISSION_DENIED" in codes or "permission denied" in lowered:
         return _HTML_INTERFACE_PERMISSION_GUIDANCE
 
     return None
@@ -1107,9 +1127,14 @@ def _reraise_mapped_html_interface_error(
     ``except`` block instead.
 
     ``PortalPermissionError`` is left untouched on purpose: its own message is
-    already the clean guidance text, and changing its type would change its
-    exit code (currently 2, via the ``ValueError`` branch), which is its own
-    pre-existing, CLI-wide pattern, not something to fix here.
+    already the clean guidance text, and it is already the CLI-wide exit-2
+    pattern for a denial. A permission denial that instead reaches here as a
+    raw ``PipefyGraphQLError`` (a read, which the SDK does not wrap into
+    ``PortalPermissionError``) is re-raised as ``PortalPermissionError`` too,
+    for the same reason: both ``_HTML_INTERFACE_PERMISSION_GUIDANCE`` and
+    ``_HTML_INTERFACE_SOURCE_ACCESS_DENIED`` are a permission denial, and a
+    caller scripting against this sub-app should see one exit code for that
+    cause regardless of which internal call (read or write) was refused.
     """
     if isinstance(exc, PortalPermissionError):
         raise exc
@@ -1120,6 +1145,11 @@ def _reraise_mapped_html_interface_error(
     )
     if text is None:
         raise exc
+    if text in (
+        _HTML_INTERFACE_PERMISSION_GUIDANCE,
+        _HTML_INTERFACE_SOURCE_ACCESS_DENIED,
+    ):
+        raise PortalPermissionError(text) from exc
     if isinstance(exc, PipefyGraphQLError):
         raise PipefyGraphQLError([{"message": text}]) from exc
     raise PipefyError(text) from exc
@@ -1209,6 +1239,8 @@ def html_interface_get(
     async def factory(client: PipefyClient):
         try:
             return await client.get_html_interface(interface_uuid)
+        except ValueError as exc:
+            raise _rewrite_grid_interface_error(exc) from exc
         except Exception as exc:
             _reraise_mapped_html_interface_error(
                 exc, not_found_message=f"No HTML interface has uuid '{interface_uuid}'."
@@ -1500,6 +1532,8 @@ def html_interface_set_sources(
             return await client.set_interface_sources(
                 page_id, element_id, sources.root, interface_uuid=interface_uuid
             )
+        except ValueError as exc:
+            raise _rewrite_grid_interface_error(exc) from exc
         except Exception as exc:
             _reraise_mapped_html_interface_error(
                 exc,

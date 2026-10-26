@@ -1,6 +1,6 @@
 # Portal
 
-Read and manage Pipefy portals (Interfaces schema): list org portals, fetch detail, create/update/delete portal metadata, manage pages (create, update, delete, sort, layout), manage page elements (create, update, delete, duplicate), manage sub-portals (create, attach, publish, unpublish, detach, delete), and fetch the HTML/CSS authoring rules for `customCode` content. **21 tools** — parity matrix rows in [`docs/parity.md`](../../parity.md).
+Read and manage Pipefy portals (Interfaces schema): list org portals, fetch detail, create/update/delete portal metadata, manage pages (create, update, delete, sort, layout), manage page elements (create, update, delete, duplicate), manage sub-portals (create, attach, publish, unpublish, detach, delete), HTML interfaces (list, read, create, write, data sources), and fetch the HTML/CSS authoring rules for `customCode` content. **28 tools** — parity matrix rows in [`docs/parity.md`](../../parity.md).
 
 Most portal tools call the **Interfaces** GraphQL endpoint (`interfaces_graphql_url`, default `https://app.pipefy.com/graphql/interfaces`), derived from `PIPEFY_BASE_URL`. Sub-portal **attach**, **publish**, **unpublish**, **detach**, and **delete** use **internal_api** (`<PIPEFY_BASE_URL>/internal_api`); only **`create_sub_portal`** uses Interfaces (`createSubPortal`).
 
@@ -225,6 +225,14 @@ Nested GraphQL/internal_api `success: false` → MCP top-level `{ success: false
 | `unpublish_sub_portal` | `pipefy portal sub-portal unpublish <portal-uuid> <element-id>` |
 | `delete_sub_portal_element` | `pipefy portal sub-portal detach <portal-uuid> <element-id> --yes` |
 | `delete_sub_portal` | `pipefy portal sub-portal delete <sub-portal-uuid> --yes` |
+| `get_interface_html_guidelines` | `pipefy portal html-interface guidelines [--include-design-system]` |
+| `list_interfaces` | `pipefy portal html-interface list --organization-uuid <id> [--search-term <name>]` |
+| `get_interface_html` | `pipefy portal html-interface get <interface-uuid>` |
+| `write_interface_html` | `pipefy portal html-interface write --page-id <id> --element-id <id> --content <html>` (or `--content-file <path>`) |
+| `create_html_interface` | `pipefy portal html-interface create --organization-uuid <id> --name <name> --html <html>` (or `--html-file <path>`) `[--color <color>] [--data-sources '[…]']` |
+| `list_interface_repos` | `pipefy portal html-interface repos --organization-id <id> [--interface-uuid <uuid>] [--repo-name <name>]` |
+| `get_interface_repo_fields` | `pipefy portal html-interface repo-fields --repo-uuid <uuid> [--interface-uuid <uuid>]` |
+| `set_interface_sources` | `pipefy portal html-interface set-sources --interface-uuid <uuid> --page-id <id> --element-id <id> --data-sources '[…]'` |
 
 ---
 
