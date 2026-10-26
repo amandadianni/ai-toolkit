@@ -29,7 +29,8 @@ If the user already has a building skill or a detailed build prompt/spec, use th
 | Traditional or AI automations (if/then, prompt-driven rules) | `pipefy-automations` |
 | Conversational AI agents and behaviors | `pipefy-ai-agents` |
 | External integration / integrate with Slack, Gmail, Sheets, or another app | `pipefy-ipaas` |
-| Portals, pages, elements, sub-portals | `pipefy-portal-setup` |
+| Main portal: its grid-layout pages, elements, sub-portals | `pipefy-portal-setup` |
+| A standalone page or dashboard built as one HTML document (an HTML interface), with data from pipes and tables; if unclear whether the user means this or a portal page, ask | `pipefy-html-interfaces` |
 | Members, email templates, inbox email, webhooks | `pipefy-members-email-webhooks` |
 | Database tables and records | `pipefy-database-tables` |
 | Pipe/card relations | `pipefy-relations` |

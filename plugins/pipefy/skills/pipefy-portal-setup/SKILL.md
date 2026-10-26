@@ -3,7 +3,8 @@ name: pipefy-portal-setup
 description: >
   Use this skill when the user wants to list, create, or configure Pipefy
   portals (main hub, pages, page elements, sub-portals, publish/unpublish).
-  Uses Interfaces and internal_api. Not for pipes/cards.
+  Uses Interfaces and internal_api. Not for pipes/cards, and not for HTML
+  interfaces (use `pipefy-html-interfaces`).
 tags: [pipefy, portal, interfaces, sub-portal, pages, elements]
 ---
 
@@ -26,6 +27,7 @@ Deep reference: [`docs/mcp/tools/portal.md`](https://github.com/pipefy/ai-toolki
 Do **not** use for:
 
 - Pipes, phases, cards, or automations — see `pipefy-pipes-and-cards`, `pipefy-automations`.
+- HTML interfaces (a standalone page written as one HTML document, held in a `customCode` element) — see `pipefy-html-interfaces`. The element tools below accept a `customCode` element; never use them on one.
 - Raw GraphQL when a portal tool exists — prefer the tools below.
 - Bootstrapping a portal via undocumented `createInterface` GraphQL — always use **`create_portal`**.
 

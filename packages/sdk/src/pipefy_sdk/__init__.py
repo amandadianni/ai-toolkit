@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-__version__ = "0.5.4-beta.2"
+__version__ = "0.5.5-beta.1"
 
 from pipefy_sdk.client import PipefyClient, PipefyEngine
 from pipefy_sdk.exceptions import (
     AiAgentConfigureError,
+    HtmlValidationError,
+    HtmlViolation,
     PipefyAPIError,
     PipefyError,
     PipefyRequestTimeoutError,
@@ -48,6 +50,7 @@ from pipefy_sdk.models import (
     DeleteCommentInput,
     FieldTypeId,
     InboxEmailDraft,
+    InterfaceDataSource,
     MemberInvite,
     NonBlankStr,
     PipefyId,
@@ -154,8 +157,11 @@ __all__ = [
     "FIELD_TYPE_IDS",
     "FieldTypeId",
     "InboxEmailDraft",
+    "InterfaceDataSource",
     "GraphQLProblem",
     "GraphQLProblemKind",
+    "HtmlValidationError",
+    "HtmlViolation",
     "KnowledgeBaseAccessProbeResult",
     "KnowledgeBaseDataLookupPayload",
     "KnowledgeBaseDeleteResult",
