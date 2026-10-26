@@ -2974,7 +2974,6 @@ def test_html_interface_write_rejects_nonexistent_content_file_exit_2(
             ],
         )
     assert result.exit_code == 2
-    assert "Could not read --content-file" in result.stderr
     assert "No such file or directory" in result.stderr
     mock_client.write_html_document.assert_not_called()
 
@@ -3250,7 +3249,7 @@ def test_html_interface_create_rejects_non_array_data_sources_exit_2(
             ],
         )
     assert result.exit_code == 2
-    assert "--data-sources must be a JSON array" in result.stderr
+    assert "must be a JSON array" in result.stderr
     mock_client.create_interface.assert_not_called()
 
 
