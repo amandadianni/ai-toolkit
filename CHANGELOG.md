@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.5-beta.1] - 2026-10-26
+
 ### Added
 
 - **SDK HTML interface reads**: `PipefyClient.list_html_interfaces` lists an organization's HTML interfaces (`contentModeHtml`). It follows the Interfaces cursor across pages of 50 and never returns portals or grid interfaces, which `list_portals` cannot reach because it filters to portals. `PipefyClient.get_html_interface` reads one through `interface(uuid)`, because `get_portal`'s `portalInterface` exposes no `htmlDocument`. Each page's elements carry their declared `dataSources` (with `id`, `name` and `filters`) and their live `htmlDocument` (`content`, `contentHash`, `createdAt`). A grid interface is rejected with `ValueError` naming `get_portal`. `PortalElementType` accepts `customCode`, the element an HTML interface's page renders.
