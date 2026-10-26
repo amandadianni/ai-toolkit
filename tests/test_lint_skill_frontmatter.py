@@ -109,7 +109,7 @@ def test_catalog_surface_exceptions():
         "pipefy-toolkit-setup": {"mcp", "cli"},
         "pipefy-attachments": {"mcp", "cli"},
         "pipefy-ipaas": {"mcp"},
-        "pipefy-html-interfaces": {"mcp"},
+        "pipefy-html-interfaces": {"mcp", "cli"},
     }
     paths = list((ROOT / "plugins" / "pipefy" / "skills").rglob("SKILL.md"))
     assert exceptions.keys() <= {path.parent.name for path in paths}
