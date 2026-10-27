@@ -31,6 +31,11 @@ from pipefy_sdk.queries.pipe_config_queries import (
     UPDATE_PIPE_MUTATION,
 )
 from pipefy_sdk.services.pipe_service import PipeService
+from pipefy_sdk.services.types import (
+    CreatePipeLabel,
+    CreatePipePhase,
+    CreatePipeStartFormField,
+)
 from pipefy_sdk.utils import (
     normalize_field_condition_actions,
     normalize_field_condition_payload,
@@ -59,12 +64,62 @@ class PipeConfigService:
         self._executor = executor
         self._pipe_service = pipe_service
 
-    async def create_pipe(self, name: str, organization_id: str | int) -> dict:
-        """Create a pipe in the organization."""
-        variables: dict[str, Any] = {
-            "input": {"name": name, "organization_id": str(organization_id)},
+    async def create_pipe(
+        self,
+        name: str,
+        organization_id: str | int,
+        phases: list[CreatePipePhase] | None = None,
+        start_form_fields: list[CreatePipeStartFormField] | None = None,
+        labels: list[CreatePipeLabel] | None = None,
+    ) -> dict:
+        """Create a pipe in the organization.
+
+        Pipefy gives every new pipe its default phases (Inbox, Doing and Done).
+        With ``phases``, the defaults are deleted and the requested phases are
+        created in order, each connected to the phases beside it, and the returned
+        pipe lists them. Without it, the defaults stay.
+
+        Pipefy's own ``phases`` input is not used: it skips a phase named like a
+        default and puts the requested phases between the defaults.
+
+        Raises:
+            ValueError: Two phases share a name, or a label color is not hex
+                ``#RGB`` or ``#RRGGBB``.
+        """
+        names = [phase["name"] for phase in phases or []]
+        repeated = sorted({name for name in names if names.count(name) > 1})
+        if repeated:
+            raise ValueError(f"Phase names must be unique in a pipe: {repeated}")
+
+        input_obj: dict[str, Any] = {
+            "name": name,
+            "organization_id": str(organization_id),
         }
-        return await self._executor.execute_query(CREATE_PIPE_MUTATION, variables)
+        if start_form_fields:
+            input_obj["start_form_fields"] = start_form_fields
+        if labels:
+            input_obj["labels"] = [
+                {**label, "color": normalize_label_color(label["color"])}
+                for label in labels
+            ]
+        result = await self._executor.execute_query(
+            CREATE_PIPE_MUTATION, {"input": input_obj}
+        )
+        if not phases:
+            return result
+
+        pipe = result["createPipe"]["pipe"]
+        # Deleted first: phase names are unique in a pipe, and one may be "Done".
+        for default in pipe["phases"]:
+            await self.delete_phase(default["id"])
+        # In order, one at a time: Pipefy connects each new phase to its neighbors.
+        created: list[dict[str, Any]] = []
+        for index, phase in enumerate(phases, start=1):
+            response = await self.create_phase(
+                pipe["id"], phase["name"], done=phase.get("done", False), index=index
+            )
+            created.append(response["createPhase"]["phase"])
+        return {"createPipe": {"pipe": {**pipe, "phases": created}}}
 
     async def update_pipe(self, pipe_id: str | int, **attrs: Any) -> dict:
         """Update a pipe by ID. Pass only Pipefy `UpdatePipeInput` fields (e.g. name, icon, color, preferences)."""

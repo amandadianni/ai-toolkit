@@ -106,6 +106,9 @@ from pipefy_sdk.services.types import (
     AiAgentGraphPayload,
     AutomationServiceResult,
     CardSearch,
+    CreatePipeLabel,
+    CreatePipePhase,
+    CreatePipeStartFormField,
     KnowledgeBaseAccessProbeResult,
     KnowledgeBaseDataLookupPayload,
     KnowledgeBaseDeleteResult,
@@ -369,9 +372,30 @@ class PipefyClient:
         """Get a pipe with AI preferences, phases with fields, and start form fields."""
         return await self._pipe_service.get_pipe_with_preferences(pipe_id)
 
-    async def create_pipe(self, name: str, organization_id: str | int) -> dict:
-        """Create a new pipe in the organization."""
-        return await self._pipe_config_service.create_pipe(name, organization_id)
+    async def create_pipe(
+        self,
+        name: str,
+        organization_id: str | int,
+        phases: list[CreatePipePhase] | None = None,
+        start_form_fields: list[CreatePipeStartFormField] | None = None,
+        labels: list[CreatePipeLabel] | None = None,
+    ) -> dict:
+        """Create a new pipe in the organization.
+
+        With ``phases``, the pipe gets exactly those phases, in that order, each
+        connected to the phases beside it. Without it, the pipe gets Pipefy's
+        default Inbox, Doing and Done. Phase names must be unique.
+        ``start_form_fields`` and ``labels`` are created in the same call. The
+        result lists the new pipe's phases, start form fields and labels with
+        their ids.
+        """
+        return await self._pipe_config_service.create_pipe(
+            name,
+            organization_id,
+            phases=phases,
+            start_form_fields=start_form_fields,
+            labels=labels,
+        )
 
     async def update_pipe(self, pipe_id: str | int, **attrs: Any) -> dict:
         """Update pipe attributes (see Pipefy `UpdatePipeInput`)."""

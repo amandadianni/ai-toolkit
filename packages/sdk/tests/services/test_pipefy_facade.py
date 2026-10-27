@@ -345,8 +345,12 @@ async def test_pipefy_client_facade_delegates_to_services_without_modifying_args
         field_updates=[{"field_id": "x", "value": "y"}],
     )
 
-    assert await client.create_pipe("P", 100) == {"ok": "create_pipe"}
-    pipe_config_service.create_pipe.assert_awaited_once_with("P", 100)
+    assert await client.create_pipe("P", 100, phases=[{"name": "Triage"}]) == {
+        "ok": "create_pipe"
+    }
+    pipe_config_service.create_pipe.assert_awaited_once_with(
+        "P", 100, phases=[{"name": "Triage"}], start_form_fields=None, labels=None
+    )
 
     assert await client.update_pipe(200, name="N") == {"ok": "update_pipe"}
     pipe_config_service.update_pipe.assert_awaited_once_with(200, name="N")
