@@ -12,6 +12,7 @@ from pipefy_sdk.exceptions import (
     PipefyAPIError,
     PipefyError,
     PipefyRequestTimeoutError,
+    PipePhaseSetupError,
 )
 from pipefy_sdk.field_filters import (
     filter_editable_field_definitions,
@@ -200,6 +201,7 @@ __all__ = [
     "PipefyId",
     "PipefyRequestTimeoutError",
     "PipefySettings",
+    "PipePhaseSetupError",
     "RecordAttribute",
     "RecordFilter",
     "RECORDS_MAX_PAGE_SIZE",

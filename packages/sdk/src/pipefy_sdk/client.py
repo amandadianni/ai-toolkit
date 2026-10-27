@@ -388,6 +388,13 @@ class PipefyClient:
         ``start_form_fields`` and ``labels`` are created in the same call. The
         result lists the new pipe's phases, start form fields and labels with
         their ids.
+
+        Raises:
+            ValueError: A phase name is blank or repeated, or a label color is not
+                hex. Nothing was created.
+            PipePhaseSetupError: The pipe was created, but setting up its phases
+                failed. It carries ``pipe_id`` and ``created_phases`` for recovery;
+                the failed call's error is ``__cause__``.
         """
         return await self._pipe_config_service.create_pipe(
             name,

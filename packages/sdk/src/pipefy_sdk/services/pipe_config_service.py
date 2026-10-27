@@ -7,6 +7,7 @@ from typing import Any
 
 from pipefy_infra.coerce import optional_str
 
+from pipefy_sdk.exceptions import PipePhaseSetupError
 from pipefy_sdk.graphql_executor import GraphQLExecutor
 from pipefy_sdk.label_color import normalize_label_color
 from pipefy_sdk.models.field_definition import FieldTypeId
@@ -72,21 +73,17 @@ class PipeConfigService:
         start_form_fields: list[CreatePipeStartFormField] | None = None,
         labels: list[CreatePipeLabel] | None = None,
     ) -> dict:
-        """Create a pipe in the organization.
-
-        Pipefy gives every new pipe its default phases (Inbox, Doing and Done).
-        With ``phases``, the defaults are deleted and the requested phases are
-        created in order, each connected to the phases beside it, and the returned
-        pipe lists them. Without it, the defaults stay.
-
-        Pipefy's own ``phases`` input is not used: it skips a phase named like a
-        default and puts the requested phases between the defaults.
+        """Create a pipe, replacing its default phases with ``phases`` when given.
 
         Raises:
-            ValueError: Two phases share a name, or a label color is not hex
-                ``#RGB`` or ``#RRGGBB``.
+            ValueError: A phase name is blank or repeated, or a label color is not
+                hex ``#RGB`` or ``#RRGGBB``. Nothing was created.
+            PipePhaseSetupError: The pipe was created, but deleting a default phase
+                or creating a requested phase failed.
         """
         names = [phase["name"] for phase in phases or []]
+        if any(not name.strip() for name in names):
+            raise ValueError("Phase names must not be blank.")
         repeated = sorted({name for name in names if names.count(name) > 1})
         if repeated:
             raise ValueError(f"Phase names must be unique in a pipe: {repeated}")
@@ -109,16 +106,25 @@ class PipeConfigService:
             return result
 
         pipe = result["createPipe"]["pipe"]
-        # Deleted first: phase names are unique in a pipe, and one may be "Done".
-        for default in pipe["phases"]:
-            await self.delete_phase(default["id"])
-        # In order, one at a time: Pipefy connects each new phase to its neighbors.
+        # Pipefy's phases input keeps the defaults and skips a phase named like one.
         created: list[dict[str, Any]] = []
-        for index, phase in enumerate(phases, start=1):
-            response = await self.create_phase(
-                pipe["id"], phase["name"], done=phase.get("done", False), index=index
-            )
-            created.append(response["createPhase"]["phase"])
+        try:
+            # Deleted first: phase names are unique in a pipe, and one may be "Done".
+            for default in pipe["phases"]:
+                await self.delete_phase(default["id"])
+            # In order, one at a time: Pipefy connects each new phase to its neighbors.
+            for index, phase in enumerate(phases, start=1):
+                response = await self.create_phase(
+                    pipe["id"],
+                    phase["name"],
+                    done=phase.get("done", False),
+                    index=index,
+                )
+                created.append(response["createPhase"]["phase"])
+        except Exception as exc:
+            raise PipePhaseSetupError(
+                pipe_id=pipe["id"], created_phases=created, reason=str(exc)
+            ) from exc
         return {"createPipe": {"pipe": {**pipe, "phases": created}}}
 
     async def update_pipe(self, pipe_id: str | int, **attrs: Any) -> dict:

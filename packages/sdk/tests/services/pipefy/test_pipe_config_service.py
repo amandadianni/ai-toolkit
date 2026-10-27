@@ -6,7 +6,7 @@ import pytest
 from _shared.mock_clients import mock_executor
 from graphql import print_ast
 
-from pipefy_sdk import PipefyGraphQLError
+from pipefy_sdk import PipefyGraphQLError, PipePhaseSetupError
 from pipefy_sdk.queries.pipe_config_queries import (
     CLONE_PIPE_MUTATION,
     CREATE_FIELD_CONDITION_MUTATION,
@@ -178,15 +178,60 @@ async def test_create_pipe_rejects_repeated_phase_names():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_create_pipe_propagates_a_failed_default_phase_delete():
+async def test_create_pipe_rejects_blank_phase_names():
+    service, executor = _make_service(_created_pipe(_DEFAULT_PHASES))
+
+    with pytest.raises(ValueError, match="blank"):
+        await service.create_pipe(
+            "Alpha", 9001, phases=[{"name": "Triage"}, {"name": " "}]
+        )
+
+    executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_reports_the_pipe_when_a_default_phase_delete_fails():
     service, _ = _make_service(_created_pipe(_DEFAULT_PHASES))
     calls = _with_phase_mocks(service)
-    calls.delete_phase.side_effect = RuntimeError("upstream")
+    failure = RuntimeError("upstream")
+    calls.delete_phase.side_effect = failure
 
-    with pytest.raises(RuntimeError, match="upstream"):
+    with pytest.raises(PipePhaseSetupError, match="Pipe 1 was created") as excinfo:
         await service.create_pipe("Alpha", 9001, phases=[{"name": "Triage"}])
 
+    assert excinfo.value.pipe_id == "1"
+    assert excinfo.value.created_phases == []
+    assert excinfo.value.__cause__ is failure
     calls.create_phase.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_reports_the_phases_created_before_a_phase_fails():
+    service, _ = _make_service(_created_pipe(_DEFAULT_PHASES))
+    calls = _with_phase_mocks(service)
+    failure = RuntimeError("Validation failed: Phase name is too long.")
+    calls.create_phase.side_effect = [
+        {"createPhase": {"phase": _phase("21", "Triage")}},
+        failure,
+    ]
+
+    with pytest.raises(PipePhaseSetupError, match="too long") as excinfo:
+        await service.create_pipe(
+            "Alpha",
+            9001,
+            phases=[
+                {"name": "Triage"},
+                {"name": "Review"},
+                {"name": "Approved", "done": True},
+            ],
+        )
+
+    assert excinfo.value.pipe_id == "1"
+    assert excinfo.value.created_phases == [_phase("21", "Triage")]
+    assert excinfo.value.__cause__ is failure
+    assert calls.create_phase.await_count == 2
 
 
 @pytest.mark.unit
