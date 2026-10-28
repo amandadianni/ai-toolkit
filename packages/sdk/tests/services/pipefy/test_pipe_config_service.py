@@ -1,12 +1,12 @@
 """Unit tests for PipeConfigService (pipe CRUD mutations)."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from _shared.mock_clients import mock_executor
 from graphql import print_ast
 
-from pipefy_sdk import PipefyGraphQLError
+from pipefy_sdk import PipefyGraphQLError, PipePhaseSetupError
 from pipefy_sdk.queries.pipe_config_queries import (
     CLONE_PIPE_MUTATION,
     CREATE_FIELD_CONDITION_MUTATION,
@@ -57,6 +57,181 @@ async def test_create_pipe_sends_input_and_returns_payload():
         "input": {"name": "Alpha", "organization_id": "9001"},
     }
     assert result == {"createPipe": {"pipe": {"id": "1", "name": "Alpha"}}}
+
+
+def _phase(phase_id: str, name: str, done: bool = False) -> dict:
+    return {"id": phase_id, "name": name, "done": done}
+
+
+def _created_pipe(phases: list[dict]) -> dict:
+    return {
+        "createPipe": {
+            "pipe": {
+                "id": "1",
+                "name": "Alpha",
+                "startFormPhaseId": "10",
+                "phases": phases,
+                "start_form_fields": [],
+                "labels": [],
+            }
+        }
+    }
+
+
+_DEFAULT_PHASES = [
+    _phase("11", "Inbox"),
+    _phase("12", "Doing"),
+    _phase("13", "Done", done=True),
+]
+
+
+def _with_phase_mocks(service: PipeConfigService) -> MagicMock:
+    """Mock the phase calls `create_pipe` makes, on one parent to record their order."""
+    calls = MagicMock()
+    calls.delete_phase = AsyncMock(return_value={"deletePhase": {"success": True}})
+    calls.create_phase = AsyncMock(
+        side_effect=lambda pipe_id, name, done, index: {
+            "createPhase": {"phase": _phase(f"2{index}", name, done)}
+        }
+    )
+    service.delete_phase = calls.delete_phase
+    service.create_phase = calls.create_phase
+    return calls
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_sends_start_form_fields_and_labels():
+    service, executor = _make_service(_created_pipe(_DEFAULT_PHASES))
+    _with_phase_mocks(service)
+
+    await service.create_pipe(
+        "Alpha",
+        9001,
+        phases=[{"name": "Triage"}],
+        start_form_fields=[{"label": "Amount", "type_id": "currency"}],
+        labels=[{"name": "Urgent", "color": "#f00"}],
+    )
+
+    query, variables = executor.execute_query.call_args[0]
+    assert query is CREATE_PIPE_MUTATION
+    assert variables == {
+        "input": {
+            "name": "Alpha",
+            "organization_id": "9001",
+            "start_form_fields": [{"label": "Amount", "type_id": "currency"}],
+            "labels": [{"name": "Urgent", "color": "#FF0000"}],
+        },
+    }
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_replaces_the_default_phases_with_the_requested_ones():
+    service, _ = _make_service(_created_pipe(_DEFAULT_PHASES))
+    calls = _with_phase_mocks(service)
+
+    result = await service.create_pipe(
+        "Alpha",
+        9001,
+        phases=[{"name": "Done"}, {"name": "Approved", "done": True}],
+    )
+
+    assert calls.mock_calls == [
+        call.delete_phase("11"),
+        call.delete_phase("12"),
+        call.delete_phase("13"),
+        call.create_phase("1", "Done", done=False, index=1),
+        call.create_phase("1", "Approved", done=True, index=2),
+    ]
+    assert result["createPipe"]["pipe"]["phases"] == [
+        _phase("21", "Done"),
+        _phase("22", "Approved", done=True),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_without_phases_keeps_the_default_phases():
+    created = _created_pipe(_DEFAULT_PHASES)
+    service, _ = _make_service(created)
+    calls = _with_phase_mocks(service)
+
+    result = await service.create_pipe("Alpha", 9001, phases=[])
+
+    assert calls.mock_calls == []
+    assert result == created
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_rejects_repeated_phase_names():
+    service, executor = _make_service(_created_pipe(_DEFAULT_PHASES))
+
+    with pytest.raises(ValueError, match="Triage"):
+        await service.create_pipe(
+            "Alpha", 9001, phases=[{"name": "Triage"}, {"name": "Triage"}]
+        )
+
+    executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_rejects_blank_phase_names():
+    service, executor = _make_service(_created_pipe(_DEFAULT_PHASES))
+
+    with pytest.raises(ValueError, match="blank"):
+        await service.create_pipe(
+            "Alpha", 9001, phases=[{"name": "Triage"}, {"name": " "}]
+        )
+
+    executor.execute_query.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_reports_the_pipe_when_a_default_phase_delete_fails():
+    service, _ = _make_service(_created_pipe(_DEFAULT_PHASES))
+    calls = _with_phase_mocks(service)
+    failure = RuntimeError("upstream")
+    calls.delete_phase.side_effect = failure
+
+    with pytest.raises(PipePhaseSetupError, match="Pipe 1 was created") as excinfo:
+        await service.create_pipe("Alpha", 9001, phases=[{"name": "Triage"}])
+
+    assert excinfo.value.pipe_id == "1"
+    assert excinfo.value.created_phases == []
+    assert excinfo.value.__cause__ is failure
+    calls.create_phase.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_create_pipe_reports_the_phases_created_before_a_phase_fails():
+    service, _ = _make_service(_created_pipe(_DEFAULT_PHASES))
+    calls = _with_phase_mocks(service)
+    failure = RuntimeError("Validation failed: Phase name is too long.")
+    calls.create_phase.side_effect = [
+        {"createPhase": {"phase": _phase("21", "Triage")}},
+        failure,
+    ]
+
+    with pytest.raises(PipePhaseSetupError, match="too long") as excinfo:
+        await service.create_pipe(
+            "Alpha",
+            9001,
+            phases=[
+                {"name": "Triage"},
+                {"name": "Review"},
+                {"name": "Approved", "done": True},
+            ],
+        )
+
+    assert excinfo.value.pipe_id == "1"
+    assert excinfo.value.created_phases == [_phase("21", "Triage")]
+    assert excinfo.value.__cause__ is failure
+    assert calls.create_phase.await_count == 2
 
 
 @pytest.mark.unit
