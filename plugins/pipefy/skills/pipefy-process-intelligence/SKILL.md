@@ -85,7 +85,7 @@ query TimedCards($pipeId: ID!, $first: Int = 25, $after: String) {
 }
 ```
 
-`duration` is seconds per phase; `lastTimeOut` is null on the phase the card is in. It is a read with no confirmation, 25 cards per page (up to 50), so say how many cards the numbers come from. Pass `"after": <pageInfo.endCursor>` in `variables` for the next page.
+`duration` is seconds per phase; `lastTimeOut` is null on the phase the card is in. The `cards` query returns the oldest cards first and takes no sort, so the first pages describe the pipe's oldest cards, not recent work: page to the end, or use a pipe report export for recent numbers. It is a read with no confirmation, 25 cards per page (up to 50), so say how many cards the numbers come from. Pass `"after": <pageInfo.endCursor>` in `variables` for the next page.
 
 Whole-pipe signals (a phase with no card in 90 days, cards leaving a phase per week) need every card, because the `cards` query returns the oldest cards first and takes no date filter or sort, so one page proves nothing about the cards it left out. Page the timed read until `hasNextPage` is false, or use a pipe report export (`pipefy-reports`) with `start_at_phase_<n>` and `end_at_phase_<n>` (`<n>` is a report index, not the phase id); the export needs an existing report (`get_pipe_reports`), and creating one with `create_pipe_report` is a write, so ask first. Without full coverage, say the signal was not checked; do not call a phase dead from a sample, and do not infer time from `cards_count`.
 
