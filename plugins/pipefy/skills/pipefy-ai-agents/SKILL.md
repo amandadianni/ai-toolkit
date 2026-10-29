@@ -37,7 +37,7 @@ Execution logs live in `pipefy-observability` (`get_ai_agent_logs`, `get_ai_agen
 
 ## Active lifecycle
 
-- Agents are **active by default**. Create-active clears the API default disabled shell via the configure update (omits `disabledAt`). Create-inactive (`disabled_at` set on the input) sets `disabled_at` explicitly on create and the chained update.
+- Agents are **active by default**. Create-active clears the API default disabled shell via the configure update (omits `disabledAt`). Create-inactive (`disabled_at` set on the input to the current time, as an ISO-8601 UTC timestamp) sets `disabled_at` explicitly on create and the chained update.
 - Routine `update_ai_agent` **preserves** disabled state — it does not intentionally reactivate. Prefer passing `disabled_at` from a prior `get_ai_agent` (`disabledAt`) to skip the preserve re-read; when omitted, the SDK re-reads and re-sends.
 - Explicit activate/deactivate: `toggle_ai_agent_status`.
 - After create/update, check the response's `disabled_at` and `active` (`active` is true when `disabled_at` is null). On `get_ai_agent`, `disabledAt` null means active; `behaviors[].active` is not agent enablement. An agent with no active behavior is disabled by the API regardless of enablement flags.
@@ -200,7 +200,7 @@ Inside `actionParams.aiBehaviorParams` a behavior may also carry:
 
 ### 7 — Create the agent
 
-`create_ai_agent` with `name`, `repo_uuid`, `instruction`, and `behaviors`. One-call creation is preferred — avoids partial agent shells. Agents are **active by default**; set `disabled_at` to start disabled (see [Active lifecycle](#active-lifecycle)).
+`create_ai_agent` with `name`, `repo_uuid`, `instruction`, and `behaviors`. One-call creation is preferred — avoids partial agent shells. Agents are **active by default**; set `disabled_at` to the current time, as an ISO-8601 UTC timestamp, to start disabled (see [Active lifecycle](#active-lifecycle)).
 
 On create/update, slug `fieldId` values are resolved to numeric `internal_id`, `%{field:<slug>}` is rewritten to `%{field:<internal_id>}`, and `referencedFieldIds` is auto-populated when applicable. The SDK injects action `referenceId` values and `%{action:<uuid>}` placeholders for every surface; do not generate them yourself.
 
